@@ -37,8 +37,8 @@ jobs:
         shell: bash
         run: |
           set -e
-          sed -i 's/^const BASE_INGREDIENTS := PackedStringArray(\(.*\))$/const BASE_INGREDIENTS = \1/' Main.gd
-          sed -i 's/^const OPTIONAL_INGREDIENTS := PackedStringArray(\(.*\))$/const OPTIONAL_INGREDIENTS = \1/' Main.gd
+          sed -i 's/^const BASE_INGREDIENTS := PackedStringArray(\(.*\))$/var BASE_INGREDIENTS: PackedStringArray = PackedStringArray(\1)/' Main.gd
+          sed -i 's/^const OPTIONAL_INGREDIENTS := PackedStringArray(\(.*\))$/var OPTIONAL_INGREDIENTS: PackedStringArray = PackedStringArray(\1)/' Main.gd
 
       - name: Import and validate project
         shell: bash
