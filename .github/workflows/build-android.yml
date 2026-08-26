@@ -33,11 +33,30 @@ jobs:
           fi
           godot --version
 
+      - name: Apply prototype source compatibility fix
+        shell: bash
+        run: |
+          set -e
+          sed -i 's/^const BASE_INGREDIENTS := PackedStringArray(\(.*\))$/const BASE_INGREDIENTS = \1/' Main.gd
+          sed -i 's/^const OPTIONAL_INGREDIENTS := PackedStringArray(\(.*\))$/const OPTIONAL_INGREDIENTS = \1/' Main.gd
+
       - name: Import and validate project
         shell: bash
         run: |
           set -e
-          godot --headless --editor --path . --quit
+          godot --headless --editor --path . --quit 2>&1 | tee validation.log
+          if grep -q "SCRIPT ERROR: Parse Error" validation.log; then
+            exit 1
+          fi
+
+      - name: Runtime smoke test
+        shell: bash
+        run: |
+          set -e
+          godot --headless --path . --quit-after 3 2>&1 | tee runtime.log
+          if grep -q "SCRIPT ERROR" runtime.log; then
+            exit 1
+          fi
 
       - name: Build APK
         shell: bash
