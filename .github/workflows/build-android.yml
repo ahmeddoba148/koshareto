@@ -1,0 +1,57 @@
+name: Build Koshareto Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    name: Android Debug APK
+    runs-on: ubuntu-24.04
+    container:
+      image: barichello/godot-ci:4.7.2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare Godot CI environment
+        shell: bash
+        run: |
+          set -e
+          mkdir -p "$HOME/.local/share/godot/export_templates"
+          mkdir -p "$HOME/.config"
+          if [ -d /root/.config/godot ]; then
+            cp -a /root/.config/godot "$HOME/.config/"
+          fi
+          if [ -d /root/.local/share/godot/export_templates/4.7.2.stable ]; then
+            cp -a /root/.local/share/godot/export_templates/4.7.2.stable "$HOME/.local/share/godot/export_templates/"
+          fi
+          godot --version
+
+      - name: Import and validate project
+        shell: bash
+        run: |
+          set -e
+          godot --headless --editor --path . --quit
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -e
+          mkdir -p build/android
+          godot --headless --verbose --path . --export-debug "Android" "$GITHUB_WORKSPACE/build/android/Koshareto-v0.1.apk"
+          test -f build/android/Koshareto-v0.1.apk
+          ls -lh build/android/Koshareto-v0.1.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Koshareto-v0.1-APK
+          path: build/android/Koshareto-v0.1.apk
+          if-no-files-found: error
+          retention-days: 14
