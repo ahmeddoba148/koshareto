@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -8,31 +9,32 @@ public static class KosharetoBuildSetup
 {
     static KosharetoBuildSetup()
     {
-        EditorApplication.delayCall += Apply;
+        EditorApplication.delayCall += ApplyReleaseSettings;
     }
 
-    static void Apply()
+    public static void ApplyReleaseSettings()
     {
         PlayerSettings.productName = "Koshareto";
         PlayerSettings.companyName = "Koshareto Studio";
         PlayerSettings.bundleVersion = "1.0.0";
         PlayerSettings.Android.bundleVersionCode = 10;
         PlayerSettings.colorSpace = ColorSpace.Gamma;
+
+        // Force portrait deterministically for local, batchmode and Unity Build Automation.
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
         PlayerSettings.allowedAutorotateToPortrait = true;
         PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
         PlayerSettings.allowedAutorotateToLandscapeLeft = false;
         PlayerSettings.allowedAutorotateToLandscapeRight = false;
 
-#pragma warning disable 0618
-        PlayerSettings.SetApplicationIdentifier(BuildTargetGroup.Android, "com.koshareto.game");
-#pragma warning restore 0618
+        PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "com.koshareto.game");
 
         PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel26;
         PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
-        PlayerSettings.Android.resizableWindow = false;
+        PlayerSettings.Android.resizeableActivity = false;
         PlayerSettings.Android.renderOutsideSafeArea = true;
 
+        // Stable compatibility profile for the first Android release.
         PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
         PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.OpenGLES3 });
 
@@ -66,7 +68,7 @@ public static class KosharetoBuildSetup
         SerializedProperty alwaysIncluded = serialized.FindProperty("m_AlwaysIncludedShaders");
         if (alwaysIncluded == null) return;
 
-        for (int i=0;i<alwaysIncluded.arraySize;i++)
+        for (int i = 0; i < alwaysIncluded.arraySize; i++)
         {
             if (alwaysIncluded.GetArrayElementAtIndex(i).objectReferenceValue == shader) return;
         }
