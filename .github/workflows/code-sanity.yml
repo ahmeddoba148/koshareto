@@ -19,8 +19,10 @@ jobs:
           test -f Assets/Scripts/KosharetoGame.cs
           test -f Assets/Scripts/KosharetoUI.cs
           test -f Assets/Scripts/KosharetoWorld.cs
+          test -f Assets/Scripts/KosharetoTextMaterialFix.cs
           test -f Assets/Resources/KosharetoMobile.shader
           test -f Assets/Resources/KosharetoUI.shader
+          test -f Assets/Resources/KosharetoText.shader
           test -f Assets/Scenes/Main.unity
           test -f ProjectSettings/ProjectVersion.txt
           grep -q 'com.unity.ugui' Packages/manifest.json
@@ -29,6 +31,9 @@ jobs:
           grep -q 'bundleVersionCode = 10' Assets/Editor/KosharetoBuildSetup.cs
           grep -q 'GraphicsDeviceType.OpenGLES3' Assets/Editor/KosharetoBuildSetup.cs
           grep -q 'ColorSpace.Gamma' Assets/Editor/KosharetoBuildSetup.cs
+          ! grep -q 'KeepBuiltInShader' Assets/Editor/KosharetoBuildSetup.cs
+          ! grep -q 'AlwaysIncludedShaders' Assets/Editor/KosharetoBuildSetup.cs
+          ! grep -q 'GUI/Text Shader' Assets/Editor/KosharetoPrebuildValidator.cs
 
       - name: Parse all C# files with Roslyn
         shell: bash
