@@ -33,7 +33,6 @@ public static class KosharetoBuildSetup
         PlayerSettings.Android.resizableWindow = false;
         PlayerSettings.Android.renderOutsideSafeArea = true;
 
-        // Conservative mobile rendering path: stable on a broad range of Android GPUs.
         PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
         PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.OpenGLES3 });
 
@@ -48,7 +47,35 @@ public static class KosharetoBuildSetup
         if (ui == null || !ui.isSupported)
             Debug.LogError("Koshareto build guard: KosharetoUI shader is missing or unsupported.");
 
+        KeepBuiltInShader("GUI/Text Shader");
         AssetDatabase.SaveAssets();
+    }
+
+    static void KeepBuiltInShader(string shaderName)
+    {
+        Shader shader = Shader.Find(shaderName);
+        if (shader == null)
+        {
+            Debug.LogError("Koshareto build guard: required built-in shader not found: " + shaderName);
+            return;
+        }
+
+        Object settingsObject = GraphicsSettings.GetGraphicsSettings();
+        if (settingsObject == null) return;
+        SerializedObject serialized = new SerializedObject(settingsObject);
+        SerializedProperty alwaysIncluded = serialized.FindProperty("m_AlwaysIncludedShaders");
+        if (alwaysIncluded == null) return;
+
+        for (int i=0;i<alwaysIncluded.arraySize;i++)
+        {
+            if (alwaysIncluded.GetArrayElementAtIndex(i).objectReferenceValue == shader) return;
+        }
+
+        int index = alwaysIncluded.arraySize;
+        alwaysIncluded.InsertArrayElementAtIndex(index);
+        alwaysIncluded.GetArrayElementAtIndex(index).objectReferenceValue = shader;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(settingsObject);
     }
 }
 #endif
