@@ -4,7 +4,6 @@ Shader "Koshareto/UI"
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
         _Color ("Tint", Color) = (1,1,1,1)
-        [MaterialToggle] PixelSnap ("Pixel snap", Float) = 0
     }
     SubShader
     {
@@ -19,7 +18,7 @@ Shader "Koshareto/UI"
         Cull Off
         Lighting Off
         ZWrite Off
-        ZTest [unity_GUIZTestMode]
+        ZTest Always
         Blend SrcAlpha OneMinusSrcAlpha
 
         Pass
@@ -58,8 +57,7 @@ Shader "Koshareto/UI"
 
             fixed4 frag(v2f i) : SV_Target
             {
-                fixed4 c = tex2D(_MainTex, i.texcoord) * i.color;
-                return c;
+                return tex2D(_MainTex, i.texcoord) * i.color;
             }
             ENDCG
         }
