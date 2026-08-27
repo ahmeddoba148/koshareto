@@ -12,8 +12,6 @@ public class KosharetoPrebuildValidator : IPreprocessBuildWithReport
 
     public void OnPreprocessBuild(BuildReport report)
     {
-        // Unity Build Automation can begin before InitializeOnLoad delayCall runs.
-        // Apply the release profile synchronously here so validation never sees stale settings.
         KosharetoBuildSetup.ApplyReleaseSettings();
 
         string[] requiredFiles =
@@ -21,9 +19,11 @@ public class KosharetoPrebuildValidator : IPreprocessBuildWithReport
             "Assets/Scenes/Main.unity",
             "Assets/Resources/KosharetoMobile.shader",
             "Assets/Resources/KosharetoUI.shader",
+            "Assets/Resources/KosharetoText.shader",
             "Assets/Scripts/KosharetoGame.cs",
             "Assets/Scripts/KosharetoUI.cs",
-            "Assets/Scripts/KosharetoWorld.cs"
+            "Assets/Scripts/KosharetoWorld.cs",
+            "Assets/Scripts/KosharetoTextMaterialFix.cs"
         };
 
         for (int i = 0; i < requiredFiles.Length; i++)
@@ -34,12 +34,13 @@ public class KosharetoPrebuildValidator : IPreprocessBuildWithReport
 
         Shader world = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Resources/KosharetoMobile.shader");
         Shader ui = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Resources/KosharetoUI.shader");
+        Shader text = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Resources/KosharetoText.shader");
         if (world == null || !world.isSupported)
             throw new BuildFailedException("Koshareto preflight: mobile world shader failed to import or is unsupported.");
         if (ui == null || !ui.isSupported)
             throw new BuildFailedException("Koshareto preflight: UI shader failed to import or is unsupported.");
-        if (Shader.Find("GUI/Text Shader") == null)
-            throw new BuildFailedException("Koshareto preflight: built-in text shader is unavailable.");
+        if (text == null || !text.isSupported)
+            throw new BuildFailedException("Koshareto preflight: project text shader failed to import or is unsupported.");
 
         if (EditorBuildSettings.scenes == null || EditorBuildSettings.scenes.Length == 0 || !EditorBuildSettings.scenes[0].enabled)
             throw new BuildFailedException("Koshareto preflight: Main scene is not enabled in Build Settings.");
@@ -60,7 +61,7 @@ public class KosharetoPrebuildValidator : IPreprocessBuildWithReport
                 throw new BuildFailedException("Koshareto preflight: Android must use OpenGLES3 only.");
         }
 
-        Debug.Log("Koshareto v1 preflight passed after forcing release settings synchronously.");
+        Debug.Log("Koshareto v1 preflight passed using only project-owned runtime shaders.");
     }
 }
 #endif
