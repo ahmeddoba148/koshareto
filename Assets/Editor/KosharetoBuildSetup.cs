@@ -15,6 +15,8 @@ public static class KosharetoBuildSetup
     {
         PlayerSettings.productName = "Koshareto";
         PlayerSettings.companyName = "Koshareto Studio";
+        PlayerSettings.bundleVersion = "0.2.0";
+        PlayerSettings.Android.bundleVersionCode = 2;
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
         PlayerSettings.allowedAutorotateToPortrait = true;
         PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
