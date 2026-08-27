@@ -4,37 +4,59 @@ using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class KosharetoPrebuildValidator : IPreprocessBuildWithReport
 {
-    public int callbackOrder => -1000;
+    public int callbackOrder { get { return -1000; } }
 
     public void OnPreprocessBuild(BuildReport report)
     {
-        string scene = "Assets/Scenes/Main.unity";
-        string worldShader = "Assets/Resources/KosharetoMobile.shader";
-        string uiShader = "Assets/Resources/KosharetoUI.shader";
-        string gameScript = "Assets/Scripts/KosharetoGame.cs";
+        string[] requiredFiles =
+        {
+            "Assets/Scenes/Main.unity",
+            "Assets/Resources/KosharetoMobile.shader",
+            "Assets/Resources/KosharetoUI.shader",
+            "Assets/Scripts/KosharetoGame.cs",
+            "Assets/Scripts/KosharetoUI.cs",
+            "Assets/Scripts/KosharetoWorld.cs"
+        };
 
-        if (!File.Exists(scene)) throw new BuildFailedException("Koshareto preflight: Main scene is missing.");
-        if (!File.Exists(worldShader)) throw new BuildFailedException("Koshareto preflight: mobile world shader is missing.");
-        if (!File.Exists(uiShader)) throw new BuildFailedException("Koshareto preflight: UI shader is missing.");
-        if (!File.Exists(gameScript)) throw new BuildFailedException("Koshareto preflight: gameplay script is missing.");
+        for (int i=0;i<requiredFiles.Length;i++)
+        {
+            if (!File.Exists(requiredFiles[i]))
+                throw new BuildFailedException("Koshareto preflight: missing required file: " + requiredFiles[i]);
+        }
 
-        Shader w = AssetDatabase.LoadAssetAtPath<Shader>(worldShader);
-        Shader u = AssetDatabase.LoadAssetAtPath<Shader>(uiShader);
-        if (w == null || !w.isSupported) throw new BuildFailedException("Koshareto preflight: mobile world shader failed to import or is unsupported.");
-        if (u == null || !u.isSupported) throw new BuildFailedException("Koshareto preflight: UI shader failed to import or is unsupported.");
+        Shader world = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Resources/KosharetoMobile.shader");
+        Shader ui = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Resources/KosharetoUI.shader");
+        if (world == null || !world.isSupported)
+            throw new BuildFailedException("Koshareto preflight: mobile world shader failed to import or is unsupported.");
+        if (ui == null || !ui.isSupported)
+            throw new BuildFailedException("Koshareto preflight: UI shader failed to import or is unsupported.");
+        if (Shader.Find("GUI/Text Shader") == null)
+            throw new BuildFailedException("Koshareto preflight: built-in text shader is unavailable.");
+
+        if (EditorBuildSettings.scenes == null || EditorBuildSettings.scenes.Length == 0 || !EditorBuildSettings.scenes[0].enabled)
+            throw new BuildFailedException("Koshareto preflight: Main scene is not enabled in Build Settings.");
 
         if (report.summary.platform == BuildTarget.Android)
         {
             if (PlayerSettings.defaultInterfaceOrientation != UIOrientation.Portrait)
                 throw new BuildFailedException("Koshareto preflight: Android orientation is not Portrait.");
-            if (PlayerSettings.Android.bundleVersionCode < 3)
-                throw new BuildFailedException("Koshareto preflight: versionCode must be at least 3.");
+            if (PlayerSettings.Android.bundleVersionCode < 10)
+                throw new BuildFailedException("Koshareto preflight: v1 versionCode must be at least 10.");
+            if (PlayerSettings.bundleVersion != "1.0.0")
+                throw new BuildFailedException("Koshareto preflight: bundle version is not 1.0.0.");
+            if (PlayerSettings.GetApplicationIdentifier(BuildTargetGroup.Android) != "com.koshareto.game")
+                throw new BuildFailedException("Koshareto preflight: Android package id is incorrect.");
+
+            GraphicsDeviceType[] apis = PlayerSettings.GetGraphicsAPIs(BuildTarget.Android);
+            if (apis == null || apis.Length != 1 || apis[0] != GraphicsDeviceType.OpenGLES3)
+                throw new BuildFailedException("Koshareto preflight: Android must use OpenGLES3 only for the v1 compatibility build.");
         }
 
-        Debug.Log("Koshareto preflight passed: scene, runtime shaders, portrait settings and version are valid.");
+        Debug.Log("Koshareto v1 preflight passed: scripts, scene, shaders, portrait mode, package id and Android graphics API are valid.");
     }
 }
 #endif
