@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify required project files
+      - name: Verify required project files and release settings
         shell: bash
         run: |
           set -e
@@ -25,6 +25,10 @@ jobs:
           test -f ProjectSettings/ProjectVersion.txt
           grep -q 'com.unity.ugui' Packages/manifest.json
           ! grep -q 'particlesystem' Packages/manifest.json
+          grep -q 'bundleVersion = "1.0.0"' Assets/Editor/KosharetoBuildSetup.cs
+          grep -q 'bundleVersionCode = 10' Assets/Editor/KosharetoBuildSetup.cs
+          grep -q 'GraphicsDeviceType.OpenGLES3' Assets/Editor/KosharetoBuildSetup.cs
+          grep -q 'ColorSpace.Gamma' Assets/Editor/KosharetoBuildSetup.cs
 
       - name: Parse all C# files with Roslyn
         shell: bash
