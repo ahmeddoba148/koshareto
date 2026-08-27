@@ -20,7 +20,6 @@ public static class KosharetoBuildSetup
         PlayerSettings.Android.bundleVersionCode = 10;
         PlayerSettings.colorSpace = ColorSpace.Gamma;
 
-        // Force portrait deterministically for local, batchmode and Unity Build Automation.
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
         PlayerSettings.allowedAutorotateToPortrait = true;
         PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
@@ -34,7 +33,6 @@ public static class KosharetoBuildSetup
         PlayerSettings.Android.resizeableActivity = false;
         PlayerSettings.Android.renderOutsideSafeArea = true;
 
-        // Stable compatibility profile for the first Android release.
         PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
         PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.OpenGLES3 });
 
@@ -44,40 +42,17 @@ public static class KosharetoBuildSetup
 
         Shader world = Resources.Load<Shader>("KosharetoMobile");
         Shader ui = Resources.Load<Shader>("KosharetoUI");
+        Shader text = Resources.Load<Shader>("KosharetoText");
         if (world == null || !world.isSupported)
             Debug.LogError("Koshareto build guard: KosharetoMobile shader is missing or unsupported.");
         if (ui == null || !ui.isSupported)
             Debug.LogError("Koshareto build guard: KosharetoUI shader is missing or unsupported.");
+        if (text == null || !text.isSupported)
+            Debug.LogError("Koshareto build guard: KosharetoText shader is missing or unsupported.");
 
-        KeepBuiltInShader("GUI/Text Shader");
+        // Do not add Unity built-in shaders to Always Included Shaders here.
+        // Built-in assets can carry HideFlags.DontSave and break Cloud Build export.
         AssetDatabase.SaveAssets();
-    }
-
-    static void KeepBuiltInShader(string shaderName)
-    {
-        Shader shader = Shader.Find(shaderName);
-        if (shader == null)
-        {
-            Debug.LogError("Koshareto build guard: required built-in shader not found: " + shaderName);
-            return;
-        }
-
-        Object settingsObject = GraphicsSettings.GetGraphicsSettings();
-        if (settingsObject == null) return;
-        SerializedObject serialized = new SerializedObject(settingsObject);
-        SerializedProperty alwaysIncluded = serialized.FindProperty("m_AlwaysIncludedShaders");
-        if (alwaysIncluded == null) return;
-
-        for (int i = 0; i < alwaysIncluded.arraySize; i++)
-        {
-            if (alwaysIncluded.GetArrayElementAtIndex(i).objectReferenceValue == shader) return;
-        }
-
-        int index = alwaysIncluded.arraySize;
-        alwaysIncluded.InsertArrayElementAtIndex(index);
-        alwaysIncluded.GetArrayElementAtIndex(index).objectReferenceValue = shader;
-        serialized.ApplyModifiedPropertiesWithoutUndo();
-        EditorUtility.SetDirty(settingsObject);
     }
 }
 #endif
