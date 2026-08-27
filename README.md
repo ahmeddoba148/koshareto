@@ -1,15 +1,16 @@
-# كشريتو — Koshareto
+# Koshareto
 
-Android 3D koshary shop simulation prototype.
+Koshareto is a portrait-first Egyptian koshary shop tycoon built with Unity 6 for Android.
 
-## v0.1 Prototype
-- Procedural 3D Egyptian koshary shop
-- Customer order loop
-- Rice, pasta, lentils, chickpeas, sauce, dakka, chili and crispy onion
-- Tap-to-build bowls
-- Correct/incorrect order scoring
-- Cash, rating, day timer and first upgrade
-- Mobile landscape UI
-- Android APK built automatically with GitHub Actions
+## Current playable vertical slice
+- Portrait 9:16 mobile layout and safe-area support
+- 3D koshary shop generated at runtime
+- Customer queue, patience, randomized orders and portion sizes
+- Eight koshary ingredients with stock management
+- Serve / clear / restock gameplay
+- Cash, rating, combo bonuses and tips
+- Day targets, win/retry loop and persistent progress
+- Three permanent shop upgrades
+- Offline play with no external assets required for the first Unity build
 
-Engine: Godot 4.7.2 (GL Compatibility renderer).
+Android package: `com.koshareto.game`
