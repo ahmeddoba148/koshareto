@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public static class KosharetoBootstrap
@@ -11,16 +10,16 @@ public static class KosharetoBootstrap
     static void Boot()
     {
         if (UnityEngine.Object.FindAnyObjectByType<KosharetoGame>() != null) return;
-        var go = new GameObject("KosharetoGame");
-        UnityEngine.Object.DontDestroyOnLoad(go);
-        go.AddComponent<KosharetoGame>();
+        GameObject root = new GameObject("KosharetoGame");
+        UnityEngine.Object.DontDestroyOnLoad(root);
+        root.AddComponent<KosharetoGame>();
     }
 }
 
-public class KosharetoGame : MonoBehaviour
+public partial class KosharetoGame : MonoBehaviour
 {
     readonly string[] ingredients = { "RICE", "PASTA", "LENTILS", "CHICKPEAS", "TOMATO", "GARLIC", "CHILI", "ONION" };
-    readonly string[] names = { "MIDO", "NOUR", "SALMA", "HASSAN", "MARIAM", "OMAR", "YOUSSEF", "FARAH", "NADA", "KARIM" };
+    readonly string[] names = { "MIDO", "NOUR", "SALMA", "HASSAN", "MARIAM", "OMAR", "YOUSSEF", "FARAH", "NADA", "KARIM", "AYA", "ALI" };
     readonly Color[] foodColors = {
         new Color(.94f,.85f,.60f), new Color(.93f,.68f,.31f), new Color(.48f,.25f,.13f), new Color(.84f,.67f,.34f),
         new Color(.72f,.10f,.07f), new Color(.87f,.82f,.57f), new Color(.62f,.05f,.04f), new Color(.45f,.20f,.07f)
@@ -31,31 +30,87 @@ public class KosharetoGame : MonoBehaviour
     static readonly Color Gold = new Color(.95f,.61f,.12f);
     static readonly Color Green = new Color(.16f,.55f,.28f);
     static readonly Color Red = new Color(.62f,.06f,.035f);
+    static readonly Color Blue = new Color(.18f,.43f,.62f);
 
     Font font;
-    Shader worldShader, uiShader;
+    Shader worldShader;
+    Shader uiShader;
     Material uiMaterial;
+
     Canvas canvas;
     RectTransform safe;
-    GameObject world, activeCustomer, bowlLayers, startPanel, hud, endPanel;
-    Text dayText, cashText, ratingText, timerText, customerText, orderText, bowlText, feedbackText, startStats, endTitle, endStats;
+    GameObject world;
+    GameObject activeCustomer;
+    GameObject bowlLayers;
+    GameObject startPanel;
+    GameObject hud;
+    GameObject endPanel;
+    GameObject tutorialPanel;
+    GameObject pausePanel;
+
+    Text dayText;
+    Text cashText;
+    Text ratingText;
+    Text timerText;
+    Text customerText;
+    Text orderText;
+    Text bowlText;
+    Text feedbackText;
+    Text rushText;
+    Text startStats;
+    Text endTitle;
+    Text endStats;
+    Text endStars;
+    Text tutorialText;
+
     Slider patienceBar;
-    Button nextButton, patUpgrade, priceUpgrade, tipsUpgrade;
-    readonly Dictionary<string,int> stock = new();
-    readonly Dictionary<string,Text> stockLabels = new();
-    readonly Dictionary<string,Button> ingredientButtons = new();
-    readonly List<string> order = new();
-    readonly List<string> bowl = new();
+    Button nextButton;
+    Button patUpgrade;
+    Button priceUpgrade;
+    Button tipsUpgrade;
+    Button stockUpgrade;
+    Button soundButton;
+
+    readonly Dictionary<string,int> stock = new Dictionary<string,int>();
+    readonly Dictionary<string,Text> stockLabels = new Dictionary<string,Text>();
+    readonly Dictionary<string,Button> ingredientButtons = new Dictionary<string,Button>();
+    readonly List<string> order = new List<string>();
+    readonly List<string> bowl = new List<string>();
 
     AudioSource audioSource;
-    AudioClip clickClip, okClip, badClip, coinClip;
-    string fatalError = "";
+    AudioClip clickClip;
+    AudioClip okClip;
+    AudioClip badClip;
+    AudioClip coinClip;
 
-    int day, cash, served, target, mistakes, combo, bestCombo, patienceLevel, priceLevel, tipsLevel;
-    float rating, timeLeft, patience, maxPatience;
-    bool playing, switching;
-    string sizeName;
+    string fatalError = "";
+    int day;
+    int cash;
+    int served;
+    int target;
+    int mistakes;
+    int combo;
+    int bestCombo;
+    int patienceLevel;
+    int priceLevel;
+    int tipsLevel;
+    int stockLevel;
+    int tutorialStep;
+    int dayStartCash;
     int basePrice;
+    int dayStars;
+    float rating;
+    float timeLeft;
+    float patience;
+    float maxPatience;
+    bool playing;
+    bool paused;
+    bool switching;
+    bool soundOn;
+    bool tutorialSeen;
+    bool passedDay;
+    bool rushOrder;
+    string sizeName;
 
     void Awake()
     {
@@ -65,24 +120,25 @@ public class KosharetoGame : MonoBehaviour
         QualitySettings.vSyncCount = 0;
 
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        if (font == null) font = Resources.GetBuiltinResource<Font>("Arial.ttf");
         worldShader = Resources.Load<Shader>("KosharetoMobile");
         uiShader = Resources.Load<Shader>("KosharetoUI");
 
-        if (worldShader == null) fatalError += "World shader missing. ";
-        if (uiShader == null) fatalError += "UI shader missing. ";
         if (font == null) fatalError += "Runtime font missing. ";
+        if (worldShader == null || !worldShader.isSupported) fatalError += "World shader missing/unsupported. ";
+        if (uiShader == null || !uiShader.isSupported) fatalError += "UI shader missing/unsupported. ";
 
-        Load();
+        LoadProgress();
         BuildAudio();
 
         try
         {
             BuildUI();
-            ShowStart();
+            ShowMenu();
         }
         catch (Exception ex)
         {
-            fatalError += "UI: " + ex.GetType().Name + " - " + ex.Message;
+            fatalError += "UI failure: " + ex.GetType().Name + " - " + ex.Message + ". ";
             Debug.LogException(ex);
         }
 
@@ -92,7 +148,7 @@ public class KosharetoGame : MonoBehaviour
         }
         catch (Exception ex)
         {
-            fatalError += " World: " + ex.GetType().Name + " - " + ex.Message;
+            fatalError += "World failure: " + ex.GetType().Name + " - " + ex.Message + ". ";
             Debug.LogException(ex);
         }
     }
@@ -101,638 +157,495 @@ public class KosharetoGame : MonoBehaviour
     {
         if (string.IsNullOrEmpty(fatalError)) return;
         GUI.color = Color.black;
-        GUI.Box(new Rect(0, 0, Screen.width, Screen.height), "");
+        GUI.Box(new Rect(0,0,Screen.width,Screen.height), "");
         GUI.color = Color.white;
-        var style = new GUIStyle(GUI.skin.label) { fontSize = Mathf.Max(20, Screen.width / 22), wordWrap = true, alignment = TextAnchor.MiddleCenter };
-        GUI.Label(new Rect(Screen.width*.07f, Screen.height*.25f, Screen.width*.86f, Screen.height*.5f),
-            "KOSHARETO SAFE MODE\n\n" + fatalError + "\n\nBuild 0.3.0", style);
+        GUIStyle style = new GUIStyle(GUI.skin.label);
+        style.fontSize = Mathf.Max(18, Screen.width / 24);
+        style.wordWrap = true;
+        style.alignment = TextAnchor.MiddleCenter;
+        GUI.Label(new Rect(Screen.width*.06f, Screen.height*.20f, Screen.width*.88f, Screen.height*.60f),
+            "KOSHARETO SAFE MODE\n\n" + fatalError + "\n\nVersion 1.0.0", style);
     }
 
     void Update()
     {
         ApplySafeArea();
-        if (!playing || switching || timerText == null || patienceBar == null) return;
+        AnimateWorld();
+        if (!playing || paused || switching || timerText == null || patienceBar == null) return;
 
-        timeLeft = Mathf.Max(0, timeLeft - Time.unscaledDeltaTime);
-        patience = Mathf.Max(0, patience - Time.unscaledDeltaTime);
-        int s = Mathf.CeilToInt(timeLeft);
-        timerText.text = string.Format("{0:00}:{1:00}", s / 60, s % 60);
-        timerText.color = timeLeft < 20 ? new Color(1,.35f,.2f) : Cream;
+        float dt = Time.unscaledDeltaTime;
+        timeLeft = Mathf.Max(0, timeLeft - dt);
+        patience = Mathf.Max(0, patience - dt);
+
+        int seconds = Mathf.CeilToInt(timeLeft);
+        timerText.text = string.Format("{0:00}:{1:00}", seconds / 60, seconds % 60);
+        timerText.color = timeLeft < 20 ? new Color(1,.32f,.18f) : Cream;
         patienceBar.value = maxPatience <= 0 ? 0 : patience / maxPatience;
 
-        if (patience <= 0) StartCoroutine(CustomerLeaves(false, "TOO SLOW!"));
+        if (rushText != null) rushText.gameObject.SetActive(rushOrder);
+
+        if (patience <= 0) StartCoroutine(CustomerLeaves(false, "CUSTOMER LEFT!"));
         else if (timeLeft <= 0) FinishDay();
     }
 
-    void Load()
+    void LoadProgress()
     {
-        day = PlayerPrefs.GetInt("day", 1);
-        cash = PlayerPrefs.GetInt("cash", 40);
-        patienceLevel = PlayerPrefs.GetInt("pat", 0);
-        priceLevel = PlayerPrefs.GetInt("price", 0);
-        tipsLevel = PlayerPrefs.GetInt("tips", 0);
-        rating = PlayerPrefs.GetFloat("rating", 4.5f);
+        day = Mathf.Max(1, PlayerPrefs.GetInt("day",1));
+        cash = Mathf.Max(0, PlayerPrefs.GetInt("cash",60));
+        patienceLevel = Mathf.Max(0, PlayerPrefs.GetInt("pat",0));
+        priceLevel = Mathf.Max(0, PlayerPrefs.GetInt("price",0));
+        tipsLevel = Mathf.Max(0, PlayerPrefs.GetInt("tips",0));
+        stockLevel = Mathf.Max(0, PlayerPrefs.GetInt("stock",0));
+        rating = Mathf.Clamp(PlayerPrefs.GetFloat("rating",4.5f),1,5);
+        tutorialSeen = PlayerPrefs.GetInt("tutorial",0) == 1;
+        soundOn = PlayerPrefs.GetInt("sound",1) == 1;
     }
 
-    void Save()
+    void SaveProgress()
     {
-        PlayerPrefs.SetInt("day", day);
-        PlayerPrefs.SetInt("cash", cash);
-        PlayerPrefs.SetInt("pat", patienceLevel);
-        PlayerPrefs.SetInt("price", priceLevel);
-        PlayerPrefs.SetInt("tips", tipsLevel);
-        PlayerPrefs.SetFloat("rating", rating);
+        PlayerPrefs.SetInt("day",day);
+        PlayerPrefs.SetInt("cash",cash);
+        PlayerPrefs.SetInt("pat",patienceLevel);
+        PlayerPrefs.SetInt("price",priceLevel);
+        PlayerPrefs.SetInt("tips",tipsLevel);
+        PlayerPrefs.SetInt("stock",stockLevel);
+        PlayerPrefs.SetFloat("rating",rating);
+        PlayerPrefs.SetInt("tutorial",tutorialSeen ? 1 : 0);
+        PlayerPrefs.SetInt("sound",soundOn ? 1 : 0);
         PlayerPrefs.Save();
     }
 
-    void BuildAudio()
+    void StartPressed()
     {
-        audioSource = gameObject.AddComponent<AudioSource>();
-        audioSource.volume = .65f;
-        clickClip = Tone("click",700,.05f,.16f);
-        okClip = Tone("ok",970,.11f,.24f);
-        badClip = Tone("bad",175,.17f,.22f);
-        coinClip = Tone("coin",1320,.08f,.18f);
-    }
-
-    AudioClip Tone(string n, float hz, float length, float volume)
-    {
-        int rate = 22050, count = Mathf.Max(1, Mathf.RoundToInt(rate * length));
-        float[] data = new float[count];
-        for (int i=0; i<count; i++)
+        Sfx(clickClip);
+        if (!tutorialSeen)
         {
-            float t = i / (float)rate, env = 1f - i / (float)count;
-            data[i] = Mathf.Sin(2 * Mathf.PI * hz * t) * volume * env;
+            tutorialStep = 0;
+            ShowTutorialStep();
+            return;
         }
-        var c = AudioClip.Create(n, count, 1, rate, false);
-        c.SetData(data, 0);
-        return c;
-    }
-
-    void Sfx(AudioClip clip)
-    {
-        if (clip != null && audioSource != null) audioSource.PlayOneShot(clip);
-    }
-
-    void BuildWorld()
-    {
-        world = new GameObject("Koshareto World");
-
-        var cam = new GameObject("Main Camera").AddComponent<Camera>();
-        cam.tag = "MainCamera";
-        cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = new Color(.035f,.022f,.015f);
-        cam.fieldOfView = 48;
-        cam.transform.position = new Vector3(0,4.5f,-11.5f);
-        cam.transform.LookAt(new Vector3(0,1.5f,1.1f));
-
-        Box("Floor", new Vector3(0,-.15f,1.2f), new Vector3(10,.3f,10), new Color(.18f,.12f,.08f));
-        Box("Back wall", new Vector3(0,2.5f,4.6f), new Vector3(10,5,.3f), new Color(.44f,.14f,.075f));
-        Box("Left wall", new Vector3(-5,2.5f,1.8f), new Vector3(.25f,5,5.7f), new Color(.54f,.40f,.26f));
-        Box("Right wall", new Vector3(5,2.5f,1.8f), new Vector3(.25f,5,5.7f), new Color(.54f,.40f,.26f));
-        Box("Sign", new Vector3(0,3.55f,4.36f), new Vector3(5.8f,1.05f,.15f), Dark);
-        Box("Sign stripe", new Vector3(0,3.55f,4.25f), new Vector3(5.2f,.14f,.08f), Gold);
-        Box("Counter", new Vector3(0,.75f,1.95f), new Vector3(8.6f,1.5f,1.1f), new Color(.27f,.11f,.055f));
-        Box("Counter top", new Vector3(0,1.55f,1.95f), new Vector3(8.9f,.12f,1.25f), new Color(.82f,.58f,.32f));
-
-        float[] xs = {-3.35f,-2.4f,-1.45f,-.5f,.5f,1.45f,2.4f,3.35f};
-        for (int i=0; i<ingredients.Length; i++) Pot(xs[i], ingredients[i], foodColors[i]);
-
-        var bowlRoot = new GameObject("Serving bowl");
-        bowlRoot.transform.SetParent(world.transform, false);
-        bowlRoot.transform.position = new Vector3(0,1.72f,1.12f);
-        CylinderChild(bowlRoot.transform,"Bowl",Vector3.zero,.72f,.22f,new Color(.92f,.84f,.71f));
-        CylinderChild(bowlRoot.transform,"Inside",new Vector3(0,.13f,0),.58f,.05f,new Color(.22f,.13f,.08f));
-        bowlLayers = new GameObject("Food layers");
-        bowlLayers.transform.SetParent(bowlRoot.transform,false);
-
-        for (int i=0; i<3; i++)
-            Person(new Vector3(2.8f+i*.55f,0,-.15f-i*.5f), Color.HSVToRGB(.55f+i*.1f,.45f,.7f), .55f);
-
-        SpawnCustomer(true);
-    }
-
-    Material WorldMaterial(Color c)
-    {
-        if (worldShader == null) throw new InvalidOperationException("Koshareto/MobileColor shader was not loaded");
-        var m = new Material(worldShader);
-        if (m.HasProperty("_Color")) m.SetColor("_Color", c);
-        else m.color = c;
-        return m;
-    }
-
-    GameObject Box(string n, Vector3 p, Vector3 s, Color c)
-    {
-        var g = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        g.name = n; g.transform.SetParent(world.transform,false); g.transform.position = p; g.transform.localScale = s;
-        g.GetComponent<Renderer>().sharedMaterial = WorldMaterial(c);
-        Destroy(g.GetComponent<Collider>());
-        return g;
-    }
-
-    GameObject Cylinder(string n, Vector3 p, float r, float h, Color c)
-    {
-        var g = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        g.name=n; g.transform.SetParent(world.transform,false); g.transform.position=p; g.transform.localScale=new Vector3(r*2,h*.5f,r*2);
-        g.GetComponent<Renderer>().sharedMaterial = WorldMaterial(c);
-        Destroy(g.GetComponent<Collider>());
-        return g;
-    }
-
-    GameObject CylinderChild(Transform parent, string n, Vector3 p, float r, float h, Color c)
-    {
-        var g = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        g.name=n; g.transform.SetParent(parent,false); g.transform.localPosition=p; g.transform.localScale=new Vector3(r*2,h*.5f,r*2);
-        g.GetComponent<Renderer>().sharedMaterial = WorldMaterial(c);
-        Destroy(g.GetComponent<Collider>());
-        return g;
-    }
-
-    void Pot(float x, string label, Color c)
-    {
-        var p = Cylinder("Pot " + label, new Vector3(x,1.79f,2.02f), .39f, .28f, new Color(.18f,.18f,.17f));
-        CylinderChild(p.transform, "Food", new Vector3(0,.2f,0), .32f, .06f, c);
-    }
-
-    GameObject Person(Vector3 p, Color shirt, float scale)
-    {
-        var root = new GameObject("Customer");
-        root.transform.SetParent(world.transform,false);
-        root.transform.position = p;
-
-        var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        body.transform.SetParent(root.transform,false);
-        body.transform.localPosition = new Vector3(0,.95f,0);
-        body.transform.localScale = new Vector3(scale,.78f,scale);
-        body.GetComponent<Renderer>().sharedMaterial = WorldMaterial(shirt);
-        Destroy(body.GetComponent<Collider>());
-
-        var head = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        head.transform.SetParent(root.transform,false);
-        head.transform.localPosition = new Vector3(0,1.82f,0);
-        head.transform.localScale = Vector3.one*scale*.78f;
-        head.GetComponent<Renderer>().sharedMaterial = WorldMaterial(new Color(.72f,.48f,.33f));
-        Destroy(head.GetComponent<Collider>());
-
-        var hair = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        hair.transform.SetParent(root.transform,false);
-        hair.transform.localPosition = new Vector3(0,2.02f,0);
-        hair.transform.localScale = new Vector3(scale*.8f,scale*.36f,scale*.8f);
-        hair.GetComponent<Renderer>().sharedMaterial = WorldMaterial(new Color(.08f,.055f,.04f));
-        Destroy(hair.GetComponent<Collider>());
-
-        return root;
-    }
-
-    void SpawnCustomer(bool instant)
-    {
-        if (world == null) return;
-        if (activeCustomer != null) Destroy(activeCustomer);
-        Color shirt = Color.HSVToRGB(UnityEngine.Random.value,.48f,.72f);
-        activeCustomer = Person(instant ? new Vector3(0,0,.05f) : new Vector3(-3.8f,0,-.6f), shirt, .82f);
-        activeCustomer.name = "Active customer";
-        if (!instant) StartCoroutine(Move(activeCustomer.transform,new Vector3(0,0,.05f),.42f));
-    }
-
-    IEnumerator Move(Transform t, Vector3 end, float duration)
-    {
-        if (t == null) yield break;
-        Vector3 start=t.position; float x=0;
-        while (x<duration && t!=null)
-        {
-            x += Time.unscaledDeltaTime;
-            t.position = Vector3.Lerp(start,end,Mathf.SmoothStep(0,1,Mathf.Clamp01(x/duration)));
-            yield return null;
-        }
-        if (t!=null) t.position=end;
-    }
-
-    void BuildUI()
-    {
-        if (uiShader == null) throw new InvalidOperationException("Koshareto/UI shader was not loaded");
-        uiMaterial = new Material(uiShader);
-
-        var cg = new GameObject("Portrait UI");
-        cg.transform.SetParent(transform,false);
-        canvas = cg.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 100;
-
-        var scaler = cg.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080,1920);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = .5f;
-        cg.AddComponent<GraphicRaycaster>();
-
-        if (UnityEngine.Object.FindAnyObjectByType<EventSystem>() == null)
-        {
-            var es = new GameObject("EventSystem");
-            es.AddComponent<EventSystem>();
-            es.AddComponent<StandaloneInputModule>();
-            DontDestroyOnLoad(es);
-        }
-
-        safe = new GameObject("SafeArea",typeof(RectTransform)).GetComponent<RectTransform>();
-        safe.SetParent(canvas.transform,false);
-        safe.anchorMin=Vector2.zero; safe.anchorMax=Vector2.one; safe.offsetMin=safe.offsetMax=Vector2.zero;
-
-        BuildHud();
-        BuildStart();
-        BuildEnd();
-    }
-
-    void ApplySafeArea()
-    {
-        if (safe==null || Screen.width<=0 || Screen.height<=0) return;
-        Rect r=Screen.safeArea;
-        Vector2 min=r.position, max=r.position+r.size;
-        min.x/=Screen.width; min.y/=Screen.height; max.x/=Screen.width; max.y/=Screen.height;
-        if (safe.anchorMin!=min || safe.anchorMax!=max)
-        {
-            safe.anchorMin=min; safe.anchorMax=max; safe.offsetMin=safe.offsetMax=Vector2.zero;
-        }
-    }
-
-    void BuildHud()
-    {
-        hud=Panel("HUD",safe,new Color(0,0,0,0),Vector2.zero,Vector2.one);
-        var top=Panel("Top bar",hud.transform,new Color(.055f,.035f,.025f,.96f),new Vector2(.025f,.91f),new Vector2(.975f,.985f));
-        Outline(top,new Color(.72f,.42f,.12f,.7f),2);
-        dayText=Label("DAY",top.transform,32,FontStyle.Bold,Gold,TextAnchor.MiddleLeft,new Vector2(.03f,0),new Vector2(.32f,1));
-        cashText=Label("$40",top.transform,33,FontStyle.Bold,Cream,TextAnchor.MiddleCenter,new Vector2(.32f,0),new Vector2(.57f,1));
-        ratingText=Label("★ 4.5",top.transform,30,FontStyle.Bold,new Color(1,.78f,.22f),TextAnchor.MiddleCenter,new Vector2(.57f,0),new Vector2(.78f,1));
-        timerText=Label("02:00",top.transform,32,FontStyle.Bold,Cream,TextAnchor.MiddleRight,new Vector2(.78f,0),new Vector2(.97f,1));
-
-        var ticket=Panel("Order",hud.transform,new Color(.07f,.045f,.03f,.96f),new Vector2(.035f,.70f),new Vector2(.965f,.90f));
-        Outline(ticket,new Color(.9f,.51f,.12f,.85f),3);
-        customerText=Label("CUSTOMER",ticket.transform,23,FontStyle.Bold,Gold,TextAnchor.UpperLeft,new Vector2(.04f,.72f),new Vector2(.96f,.96f));
-        orderText=Label("ORDER",ticket.transform,28,FontStyle.Bold,Color.white,TextAnchor.MiddleLeft,new Vector2(.04f,.22f),new Vector2(.96f,.72f));
-        orderText.horizontalOverflow=HorizontalWrapMode.Wrap;
-        orderText.verticalOverflow=VerticalWrapMode.Truncate;
-        patienceBar=SliderBar(ticket.transform,new Vector2(.04f,.06f),new Vector2(.96f,.18f));
-
-        feedbackText=Label("",hud.transform,34,FontStyle.Bold,Color.white,TextAnchor.MiddleCenter,new Vector2(.06f,.60f),new Vector2(.94f,.68f));
-        feedbackText.resizeTextForBestFit=true; feedbackText.resizeTextMinSize=20; feedbackText.resizeTextMaxSize=38;
-        TextOutline(feedbackText,Dark,2);
-
-        var deck=Panel("Controls",hud.transform,new Color(.045f,.03f,.02f,.98f),new Vector2(.02f,.015f),new Vector2(.98f,.46f));
-        Outline(deck,new Color(.64f,.37f,.12f,.8f),3);
-        bowlText=Label("BOWL: EMPTY",deck.transform,20,FontStyle.Bold,new Color(.82f,.73f,.62f),TextAnchor.MiddleLeft,new Vector2(.04f,.87f),new Vector2(.96f,.98f));
-
-        float left=.035f,right=.965f,topY=.84f,bottom=.31f,gx=.018f,gy=.025f,cw=(right-left-gx)/2,ch=(topY-bottom-gy*3)/4;
-        for(int i=0;i<ingredients.Length;i++)
-        {
-            int row=i/2,col=i%2;
-            float x0=left+col*(cw+gx),y1=topY-row*(ch+gy),y0=y1-ch;
-            string item=ingredients[i];
-            var b=UIButton(item,deck.transform,foodColors[i],Color.white,new Vector2(x0,y0),new Vector2(x0+cw,y1),25);
-            b.onClick.AddListener(()=>AddIngredient(item));
-            ingredientButtons[item]=b;
-            stockLabels[item]=Label("x12",b.transform,17,FontStyle.Bold,new Color(1,1,1,.82f),TextAnchor.LowerRight,new Vector2(.68f,.02f),new Vector2(.96f,.42f));
-        }
-
-        var serve=UIButton("SERVE",deck.transform,Green,Color.white,new Vector2(.035f,.055f),new Vector2(.50f,.255f),32);
-        serve.onClick.AddListener(Serve);
-        var clear=UIButton("CLEAR",deck.transform,Red,Color.white,new Vector2(.515f,.055f),new Vector2(.72f,.255f),24);
-        clear.onClick.AddListener(()=>ClearBowl(true));
-        var restock=UIButton("RESTOCK",deck.transform,new Color(.20f,.30f,.43f),Color.white,new Vector2(.735f,.055f),new Vector2(.965f,.255f),21);
-        restock.onClick.AddListener(Restock);
-    }
-
-    void BuildStart()
-    {
-        startPanel=Panel("Start",safe,new Color(.04f,.025f,.018f,.995f),Vector2.zero,Vector2.one);
-        var plate=Panel("Logo",startPanel.transform,new Color(.20f,.075f,.025f,.97f),new Vector2(.08f,.57f),new Vector2(.92f,.82f));
-        Outline(plate,Gold,4);
-        var logo=Label("KOSHARETO",plate.transform,66,FontStyle.Bold,new Color(1,.72f,.2f),TextAnchor.MiddleCenter,new Vector2(.03f,.35f),new Vector2(.97f,.82f));
-        TextOutline(logo,new Color(.35f,.08f,.02f),3);
-        Label("EGYPTIAN KOSHARY TYCOON",plate.transform,21,FontStyle.Bold,Cream,TextAnchor.MiddleCenter,new Vector2(.04f,.12f),new Vector2(.96f,.38f));
-        Label("Build the bowl. Beat the rush. Grow the shop.",startPanel.transform,25,FontStyle.Normal,Cream,TextAnchor.MiddleCenter,new Vector2(.08f,.45f),new Vector2(.92f,.55f));
-        var play=UIButton("OPEN SHOP",startPanel.transform,Green,Color.white,new Vector2(.12f,.30f),new Vector2(.88f,.40f),35);
-        play.onClick.AddListener(StartDay);
-        startStats=Label("",startPanel.transform,21,FontStyle.Bold,new Color(.77f,.68f,.58f),TextAnchor.UpperCenter,new Vector2(.08f,.12f),new Vector2(.92f,.27f));
-        Label("PORTRAIT MOBILE • OFFLINE • NO ADS",startPanel.transform,17,FontStyle.Normal,new Color(.58f,.52f,.48f),TextAnchor.MiddleCenter,new Vector2(.05f,.03f),new Vector2(.95f,.08f));
-    }
-
-    void BuildEnd()
-    {
-        endPanel=Panel("End",safe,new Color(.03f,.02f,.015f,.995f),Vector2.zero,Vector2.one);
-        endTitle=Label("DAY COMPLETE",endPanel.transform,50,FontStyle.Bold,Gold,TextAnchor.MiddleCenter,new Vector2(.06f,.78f),new Vector2(.94f,.90f));
-        endStats=Label("",endPanel.transform,26,FontStyle.Bold,Cream,TextAnchor.UpperCenter,new Vector2(.08f,.59f),new Vector2(.92f,.76f));
-        Label("SHOP UPGRADES",endPanel.transform,23,FontStyle.Bold,new Color(.75f,.64f,.52f),TextAnchor.MiddleCenter,new Vector2(.08f,.51f),new Vector2(.92f,.57f));
-        patUpgrade=UIButton("PATIENCE",endPanel.transform,new Color(.18f,.34f,.48f),Color.white,new Vector2(.10f,.40f),new Vector2(.90f,.49f),24);
-        priceUpgrade=UIButton("PRICE",endPanel.transform,new Color(.44f,.27f,.10f),Color.white,new Vector2(.10f,.29f),new Vector2(.90f,.38f),24);
-        tipsUpgrade=UIButton("TIPS",endPanel.transform,new Color(.30f,.18f,.39f),Color.white,new Vector2(.10f,.18f),new Vector2(.90f,.27f),24);
-        patUpgrade.onClick.AddListener(()=>BuyUpgrade(0));
-        priceUpgrade.onClick.AddListener(()=>BuyUpgrade(1));
-        tipsUpgrade.onClick.AddListener(()=>BuyUpgrade(2));
-        nextButton=UIButton("NEXT DAY",endPanel.transform,Green,Color.white,new Vector2(.12f,.055f),new Vector2(.88f,.145f),33);
-    }
-
-    GameObject Panel(string n,Transform parent,Color c,Vector2 min,Vector2 max)
-    {
-        var g=new GameObject(n,typeof(RectTransform),typeof(CanvasRenderer),typeof(Image));
-        g.transform.SetParent(parent,false);
-        var rt=g.GetComponent<RectTransform>();
-        rt.anchorMin=min; rt.anchorMax=max; rt.offsetMin=rt.offsetMax=Vector2.zero;
-        var image=g.GetComponent<Image>();
-        image.color=c;
-        image.material=uiMaterial;
-        return g;
-    }
-
-    Text Label(string value,Transform parent,int size,FontStyle style,Color c,TextAnchor anchor,Vector2 min,Vector2 max)
-    {
-        var g=new GameObject("Text",typeof(RectTransform),typeof(CanvasRenderer),typeof(Text));
-        g.transform.SetParent(parent,false);
-        var rt=g.GetComponent<RectTransform>();
-        rt.anchorMin=min; rt.anchorMax=max; rt.offsetMin=rt.offsetMax=Vector2.zero;
-        var t=g.GetComponent<Text>();
-        t.font=font; t.text=value; t.fontSize=size; t.fontStyle=style; t.color=c; t.alignment=anchor; t.supportRichText=true;
-        t.material=uiMaterial;
-        return t;
-    }
-
-    Button UIButton(string text,Transform parent,Color bg,Color fg,Vector2 min,Vector2 max,int size)
-    {
-        var g=new GameObject(text+" button",typeof(RectTransform),typeof(CanvasRenderer),typeof(Image),typeof(Button));
-        g.transform.SetParent(parent,false);
-        var rt=g.GetComponent<RectTransform>();
-        rt.anchorMin=min; rt.anchorMax=max; rt.offsetMin=rt.offsetMax=Vector2.zero;
-        var img=g.GetComponent<Image>(); img.color=bg; img.material=uiMaterial;
-        var b=g.GetComponent<Button>();
-        var cs=b.colors;
-        cs.normalColor=Color.white; cs.highlightedColor=new Color(.94f,.94f,.94f); cs.pressedColor=new Color(.78f,.78f,.78f); cs.disabledColor=new Color(.35f,.35f,.35f,.5f);
-        b.colors=cs;
-        var l=Label(text,g.transform,size,FontStyle.Bold,fg,TextAnchor.MiddleCenter,new Vector2(.03f,.03f),new Vector2(.97f,.97f));
-        l.raycastTarget=false;
-        Outline(g,new Color(1,1,1,.10f),1.5f);
-        return b;
-    }
-
-    Slider SliderBar(Transform parent,Vector2 min,Vector2 max)
-    {
-        var g=new GameObject("Patience",typeof(RectTransform),typeof(Slider));
-        g.transform.SetParent(parent,false);
-        var rt=g.GetComponent<RectTransform>();
-        rt.anchorMin=min; rt.anchorMax=max; rt.offsetMin=rt.offsetMax=Vector2.zero;
-        Panel("BG",g.transform,new Color(.14f,.10f,.08f),Vector2.zero,Vector2.one);
-        var area=new GameObject("Fill area",typeof(RectTransform));
-        area.transform.SetParent(g.transform,false);
-        var ar=area.GetComponent<RectTransform>();
-        ar.anchorMin=new Vector2(.01f,.16f); ar.anchorMax=new Vector2(.99f,.84f); ar.offsetMin=ar.offsetMax=Vector2.zero;
-        var fill=Panel("Fill",area.transform,Green,Vector2.zero,Vector2.one);
-        var s=g.GetComponent<Slider>();
-        s.minValue=0;s.maxValue=1;s.value=1;s.fillRect=fill.GetComponent<RectTransform>();s.interactable=false;
-        return s;
-    }
-
-    void Outline(GameObject g,Color c,float d)
-    {
-        var o=g.AddComponent<Outline>(); o.effectColor=c; o.effectDistance=new Vector2(d,-d); o.useGraphicAlpha=true;
-    }
-
-    void TextOutline(Text t,Color c,int d)
-    {
-        var o=t.gameObject.AddComponent<Outline>(); o.effectColor=c; o.effectDistance=new Vector2(d,-d);
-    }
-
-    void ShowStart()
-    {
-        playing=false;
-        if (hud!=null) hud.SetActive(false);
-        if (endPanel!=null) endPanel.SetActive(false);
-        if (startPanel!=null) startPanel.SetActive(true);
-        if (startStats!=null)
-            startStats.text=string.Format("DAY {0}   •   CASH ${1}\nPATIENCE Lv.{2}   PRICE Lv.{3}   TIPS Lv.{4}",day,cash,patienceLevel,priceLevel,tipsLevel);
+        StartDay();
     }
 
     void StartDay()
     {
-        if (!string.IsNullOrEmpty(fatalError)) return;
-        Sfx(clickClip);
-        startPanel.SetActive(false); endPanel.SetActive(false); hud.SetActive(true);
-        playing=true; switching=false; served=0; mistakes=0; combo=0; bestCombo=0;
-        target=Mathf.Clamp(7+day,8,18);
-        timeLeft=105+Mathf.Min(day,5)*5;
-        rating=Mathf.Clamp(rating,2.5f,5);
+        if (startPanel != null) startPanel.SetActive(false);
+        if (endPanel != null) endPanel.SetActive(false);
+        if (tutorialPanel != null) tutorialPanel.SetActive(false);
+        if (pausePanel != null) pausePanel.SetActive(false);
+        if (hud != null) hud.SetActive(true);
+
+        playing = true;
+        paused = false;
+        switching = false;
+        passedDay = false;
+        served = 0;
+        mistakes = 0;
+        combo = 0;
+        bestCombo = 0;
+        dayStars = 0;
+        dayStartCash = cash;
+        target = Mathf.Clamp(7 + day, 8, 20);
+        timeLeft = 105 + Mathf.Min(day,6) * 5;
+        rating = Mathf.Clamp(rating,2.5f,5);
+
+        int capacity = 10 + stockLevel * 3 + Mathf.Min(day,4);
         stock.Clear();
-        foreach(string i in ingredients) stock[i]=10+Mathf.Min(day,5);
-        UpdateStock(); ClearBowl(false); UpdateHud(); NewOrder(true); Flash("SHOP OPEN!",Gold);
+        for (int i=0;i<ingredients.Length;i++) stock[ingredients[i]] = capacity;
+
+        UpdateStock();
+        ClearBowl(false);
+        UpdateHud();
+        NewOrder(true);
+        Flash("SHOP OPEN!", Gold);
     }
 
-    void NewOrder(bool instant=false)
+    void NewOrder(bool instant)
     {
         order.Clear();
-        order.Add("RICE"); order.Add("PASTA"); order.Add("LENTILS"); order.Add("TOMATO");
-        if(UnityEngine.Random.value<.78f) order.Add("CHICKPEAS");
-        if(UnityEngine.Random.value<.58f+Mathf.Min(day*.02f,.18f)) order.Add("GARLIC");
-        if(UnityEngine.Random.value<.34f+Mathf.Min(day*.025f,.25f)) order.Add("CHILI");
-        if(UnityEngine.Random.value<.62f) order.Add("ONION");
+        order.Add("RICE");
+        order.Add("PASTA");
+        order.Add("LENTILS");
+        order.Add("TOMATO");
 
-        int p=UnityEngine.Random.Range(0,3);
-        sizeName=p==0?"SMALL":p==1?"MEDIUM":"LARGE";
-        basePrice=(p==0?18:p==1?24:31)+priceLevel*3;
-        maxPatience=Mathf.Max(9,22+patienceLevel*2.6f-Mathf.Min(day*.55f,6));
-        patience=maxPatience;
+        float difficulty = Mathf.Min(.30f, day * .018f);
+        if (UnityEngine.Random.value < .72f + difficulty) order.Add("CHICKPEAS");
+        if (UnityEngine.Random.value < .52f + difficulty) order.Add("GARLIC");
+        if (UnityEngine.Random.value < .28f + difficulty) order.Add("CHILI");
+        if (UnityEngine.Random.value < .58f + difficulty) order.Add("ONION");
 
-        customerText.text=names[UnityEngine.Random.Range(0,names.Length)]+"  •  "+sizeName;
-        orderText.text=string.Join("  +  ",order.ToArray());
+        int size = UnityEngine.Random.Range(0,3);
+        sizeName = size == 0 ? "SMALL" : size == 1 ? "MEDIUM" : "LARGE";
+        basePrice = (size == 0 ? 18 : size == 1 ? 25 : 33) + priceLevel * 3 + Mathf.Min(day,10);
+
+        rushOrder = day >= 2 && served > 0 && served % 4 == 0;
+        float rushFactor = rushOrder ? .68f : 1f;
+        maxPatience = Mathf.Max(8, (23 + patienceLevel * 2.8f - Mathf.Min(day * .5f,6)) * rushFactor);
+        patience = maxPatience;
+
+        if (customerText != null) customerText.text = names[UnityEngine.Random.Range(0,names.Length)] + "  •  " + sizeName;
+        if (orderText != null) orderText.text = string.Join("  +  ", order.ToArray());
         SpawnCustomer(instant);
         UpdateHud();
+        if (rushOrder) Flash("RUSH ORDER! +25% BONUS", new Color(1,.46f,.12f));
     }
 
     void AddIngredient(string item)
     {
-        if(!playing||switching) return;
-        if(!stock.ContainsKey(item)||stock[item]<=0){Flash("OUT OF "+item+"!",new Color(1,.3f,.2f));Sfx(badClip);return;}
-        if(bowl.Contains(item)){Flash("ALREADY ADDED",Gold);return;}
-
-        stock[item]--; bowl.Add(item); Sfx(clickClip);
-
-        if (bowlLayers!=null && worldShader!=null)
+        if (!playing || paused || switching) return;
+        if (!stock.ContainsKey(item) || stock[item] <= 0)
         {
-            int idx=Array.IndexOf(ingredients,item);
-            var layer=GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            layer.name=item;
-            layer.transform.SetParent(bowlLayers.transform,false);
-            layer.transform.localPosition=new Vector3(0,.18f+bowl.Count*.045f,0);
-            layer.transform.localScale=new Vector3(.5f,.018f,.5f);
-            layer.GetComponent<Renderer>().sharedMaterial=WorldMaterial(foodColors[idx]);
-            Destroy(layer.GetComponent<Collider>());
+            Flash("OUT OF " + item + "!", new Color(1,.28f,.18f));
+            Sfx(badClip);
+            return;
+        }
+        if (bowl.Contains(item))
+        {
+            Flash("ALREADY ADDED", Gold);
+            return;
         }
 
-        UpdateStock(); UpdateBowl();
+        stock[item]--;
+        bowl.Add(item);
+        int idx = Array.IndexOf(ingredients,item);
+        AddBowlLayer(item, idx);
+        Sfx(clickClip);
+        UpdateStock();
+        UpdateBowl();
     }
 
     void ClearBowl(bool message)
     {
         bowl.Clear();
-        if(bowlLayers!=null)
-            for(int i=bowlLayers.transform.childCount-1;i>=0;i--) Destroy(bowlLayers.transform.GetChild(i).gameObject);
+        ClearBowlVisual();
         UpdateBowl();
-        if(message&&playing) Flash("BOWL CLEARED",Cream);
+        if (message && playing) Flash("BOWL CLEARED", Cream);
+    }
+
+    bool IsOrderCorrect()
+    {
+        if (bowl.Count != order.Count) return false;
+        for (int i=0;i<order.Count;i++) if (!bowl.Contains(order[i])) return false;
+        return true;
     }
 
     void Serve()
     {
-        if(!playing||switching) return;
-        if(bowl.Count==0){Flash("BUILD THE BOWL FIRST!",Gold);Sfx(badClip);return;}
-
-        bool correct=bowl.Count==order.Count;
-        if(correct) foreach(string i in order) if(!bowl.Contains(i)){correct=false;break;}
-
-        if(!correct)
+        if (!playing || paused || switching) return;
+        if (bowl.Count == 0)
         {
-            mistakes++;combo=0;rating=Mathf.Clamp(rating-.16f,1,5);
-            Sfx(badClip);Flash("WRONG ORDER!",new Color(1,.25f,.18f));UpdateHud();return;
+            Flash("BUILD THE BOWL FIRST!", Gold);
+            Sfx(badClip);
+            return;
         }
 
-        float pr=maxPatience<=0?0:patience/maxPatience;
-        int tip=UnityEngine.Random.value<.08f+tipsLevel*.08f+pr*.12f?UnityEngine.Random.Range(2,7)+tipsLevel*2:0;
-        int earn=basePrice+tip+Mathf.Min(combo,5);
+        if (!IsOrderCorrect())
+        {
+            mistakes++;
+            combo = 0;
+            rating = Mathf.Clamp(rating - .16f,1,5);
+            Sfx(badClip);
+            Flash("WRONG ORDER!", new Color(1,.24f,.16f));
+            UpdateHud();
+            return;
+        }
 
-        cash+=earn;served++;combo++;bestCombo=Mathf.Max(bestCombo,combo);
-        rating=Mathf.Clamp(rating+.035f+pr*.025f,1,5);
-        Sfx(okClip); if(tip>0)Sfx(coinClip);
-        Flash("PERFECT!  +$"+earn+(tip>0?"  TIP!":""),Green);
-        ClearBowl(false); UpdateHud();
+        float patienceRatio = maxPatience <= 0 ? 0 : patience / maxPatience;
+        int comboBonus = Mathf.Min(combo,6);
+        int rushBonus = rushOrder ? Mathf.CeilToInt(basePrice * .25f) : 0;
+        float tipChance = .08f + tipsLevel * .075f + patienceRatio * .12f;
+        int tip = UnityEngine.Random.value < tipChance ? UnityEngine.Random.Range(2,7) + tipsLevel * 2 : 0;
+        int earned = basePrice + comboBonus + rushBonus + tip;
 
-        if(served>=target){FinishDay();return;}
+        cash += earned;
+        served++;
+        combo++;
+        bestCombo = Mathf.Max(bestCombo,combo);
+        rating = Mathf.Clamp(rating + .03f + patienceRatio * .025f,1,5);
+        Sfx(okClip);
+        if (tip > 0) Sfx(coinClip);
+
+        Flash("PERFECT!  +$" + earned + (tip > 0 ? "  TIP!" : ""), Green);
+        ClearBowl(false);
+        UpdateHud();
+
+        if (served >= target)
+        {
+            FinishDay();
+            return;
+        }
         StartCoroutine(CustomerLeaves(true,""));
     }
 
-    IEnumerator CustomerLeaves(bool happy,string message)
+    IEnumerator CustomerLeaves(bool happy, string message)
     {
-        if(switching) yield break;
-        switching=true;
+        if (switching) yield break;
+        switching = true;
 
-        if(!happy)
+        if (!happy)
         {
-            mistakes++;combo=0;rating=Mathf.Clamp(rating-.22f,1,5);
-            Sfx(badClip);Flash(message,new Color(1,.25f,.18f));UpdateHud();
+            mistakes++;
+            combo = 0;
+            rating = Mathf.Clamp(rating - .22f,1,5);
+            Sfx(badClip);
+            Flash(message,new Color(1,.24f,.16f));
+            UpdateHud();
         }
 
-        if(activeCustomer!=null)
-        {
-            Transform t=activeCustomer.transform;
-            Vector3 start=t.position,end=happy?new Vector3(3.8f,0,-.5f):new Vector3(-3.8f,0,-.5f);
-            float x=0;
-            while(x<.35f&&t!=null)
-            {
-                x+=Time.unscaledDeltaTime;
-                t.position=Vector3.Lerp(start,end,Mathf.SmoothStep(0,1,x/.35f));
-                yield return null;
-            }
-        }
-
-        yield return new WaitForSecondsRealtime(.18f);
-        ClearBowl(false); NewOrder(false); switching=false;
+        yield return MoveCustomerOut(happy);
+        yield return new WaitForSecondsRealtime(.15f);
+        ClearBowl(false);
+        NewOrder(false);
+        switching = false;
     }
 
     void Restock()
     {
-        if(!playing||switching) return;
-        if(cash<18){Flash("NEED $18 TO RESTOCK",Gold);Sfx(badClip);return;}
-        cash-=18;
-        foreach(string i in ingredients)stock[i]+=5;
-        Sfx(coinClip); Flash("RESTOCKED +5 EACH",new Color(.34f,.73f,.95f));
-        UpdateStock(); UpdateHud();
+        if (!playing || paused || switching) return;
+        int cost = 14 + Mathf.Min(day,8) * 2;
+        if (cash < cost)
+        {
+            Flash("NEED $" + cost + " TO RESTOCK", Gold);
+            Sfx(badClip);
+            return;
+        }
+
+        cash -= cost;
+        int amount = 5 + stockLevel;
+        for (int i=0;i<ingredients.Length;i++) stock[ingredients[i]] += amount;
+        Sfx(coinClip);
+        Flash("RESTOCKED +" + amount + " EACH", new Color(.34f,.73f,.95f));
+        UpdateStock();
+        UpdateHud();
     }
 
     void FinishDay()
     {
-        if(!playing) return;
-        playing=false;switching=false;
-        hud.SetActive(false);endPanel.SetActive(true);
+        if (!playing) return;
+        playing = false;
+        paused = false;
+        switching = false;
+        if (hud != null) hud.SetActive(false);
+        if (endPanel != null) endPanel.SetActive(true);
 
-        bool pass=served>=Mathf.Max(4,target/2)&&rating>=2.4f;
-        int bonus=pass?20+day*5+bestCombo*2:0;
-        cash+=bonus;
+        passedDay = served >= Mathf.Max(5, Mathf.CeilToInt(target * .65f)) && rating >= 2.5f;
+        float accuracy = served <= 0 ? 0 : Mathf.Clamp01(1f - mistakes / (float)Mathf.Max(1,served + mistakes));
+        dayStars = !passedDay ? 0 : accuracy > .90f && rating >= 4.4f ? 3 : accuracy > .72f && rating >= 3.7f ? 2 : 1;
+        int bonus = passedDay ? 18 + day * 5 + dayStars * 12 + bestCombo * 2 : 0;
+        cash += bonus;
 
-        endTitle.text=pass?"DAY COMPLETE":"ROUGH DAY";
-        endTitle.color=pass?Gold:new Color(1,.35f,.25f);
-        endStats.text=string.Format("SERVED {0}/{1}\nMISTAKES {2}   •   BEST COMBO x{3}\nRATING ★ {4:0.0}   •   BONUS ${5}\nCASH ${6}",
-            served,target,mistakes,bestCombo,rating,bonus,cash);
+        if (endTitle != null)
+        {
+            endTitle.text = passedDay ? "DAY COMPLETE" : "ROUGH DAY";
+            endTitle.color = passedDay ? Gold : new Color(1,.34f,.24f);
+        }
+        if (endStars != null) endStars.text = dayStars == 0 ? "☆  ☆  ☆" : dayStars == 1 ? "★  ☆  ☆" : dayStars == 2 ? "★  ★  ☆" : "★  ★  ★";
+        if (endStats != null)
+        {
+            int profit = cash - dayStartCash;
+            endStats.text = "SERVED " + served + "/" + target + "\nMISTAKES " + mistakes + "   •   BEST COMBO x" + bestCombo +
+                "\nRATING ★ " + rating.ToString("0.0") + "   •   BONUS $" + bonus + "\nDAY PROFIT $" + profit + "   •   CASH $" + cash;
+        }
 
-        nextButton.GetComponentInChildren<Text>().text=pass?"NEXT DAY":"RETRY DAY";
-        nextButton.onClick.RemoveAllListeners();
-        nextButton.onClick.AddListener(()=>{if(pass)day++;Save();ShowStart();});
-        UpdateUpgrades(); Save();
+        if (nextButton != null)
+        {
+            SetButtonLabel(nextButton, passedDay ? "NEXT DAY" : "RETRY DAY");
+            nextButton.onClick.RemoveAllListeners();
+            nextButton.onClick.AddListener(AdvanceFromEnd);
+        }
+
+        UpdateUpgrades();
+        SaveProgress();
+    }
+
+    void AdvanceFromEnd()
+    {
+        Sfx(clickClip);
+        if (passedDay) day++;
+        SaveProgress();
+        ShowMenu();
+    }
+
+    int UpgradeCost(int type, int level)
+    {
+        int baseCost = type == 0 ? 80 : type == 1 ? 100 : type == 2 ? 115 : 90;
+        return baseCost + level * 55;
     }
 
     void BuyUpgrade(int type)
     {
-        int level=type==0?patienceLevel:type==1?priceLevel:tipsLevel;
-        int baseCost=type==0?80:type==1?100:120;
-        int cost=baseCost+level*55;
-        if(cash<cost){Sfx(badClip);return;}
+        int level = type == 0 ? patienceLevel : type == 1 ? priceLevel : type == 2 ? tipsLevel : stockLevel;
+        int cost = UpgradeCost(type,level);
+        if (cash < cost)
+        {
+            Sfx(badClip);
+            Flash("NOT ENOUGH CASH", Red);
+            return;
+        }
 
-        cash-=cost;
-        if(type==0)patienceLevel++;
-        else if(type==1)priceLevel++;
-        else tipsLevel++;
-
-        Sfx(coinClip); Save(); UpdateUpgrades();
-        endStats.text+="\nUPGRADE PURCHASED!";
+        cash -= cost;
+        if (type == 0) patienceLevel++;
+        else if (type == 1) priceLevel++;
+        else if (type == 2) tipsLevel++;
+        else stockLevel++;
+        Sfx(coinClip);
+        SaveProgress();
+        UpdateUpgrades();
+        if (endStats != null) endStats.text += "\nUPGRADE PURCHASED!";
     }
 
-    void UpdateUpgrades()
+    void PauseGame()
     {
-        SetUpgrade(patUpgrade,"PATIENCE +12%",80,patienceLevel);
-        SetUpgrade(priceUpgrade,"BETTER PRICE +$3",100,priceLevel);
-        SetUpgrade(tipsUpgrade,"TIP CHANCE +8%",120,tipsLevel);
+        if (!playing || switching) return;
+        paused = true;
+        if (pausePanel != null) pausePanel.SetActive(true);
+        Sfx(clickClip);
     }
 
-    void SetUpgrade(Button b,string title,int baseCost,int level)
+    void ResumeGame()
     {
-        if (b==null) return;
-        int cost=baseCost+level*55;
-        b.GetComponentInChildren<Text>().text=title+"  •  $"+cost+"  •  Lv."+level;
-        b.interactable=cash>=cost;
+        paused = false;
+        if (pausePanel != null) pausePanel.SetActive(false);
+        Sfx(clickClip);
+    }
+
+    void ReturnToMenu()
+    {
+        playing = false;
+        paused = false;
+        switching = false;
+        SaveProgress();
+        ShowMenu();
+    }
+
+    void ToggleSound()
+    {
+        soundOn = !soundOn;
+        SaveProgress();
+        RefreshMenu();
+        if (soundOn) Sfx(clickClip);
+    }
+
+    void ShowMenu()
+    {
+        playing = false;
+        paused = false;
+        switching = false;
+        if (hud != null) hud.SetActive(false);
+        if (endPanel != null) endPanel.SetActive(false);
+        if (tutorialPanel != null) tutorialPanel.SetActive(false);
+        if (pausePanel != null) pausePanel.SetActive(false);
+        if (startPanel != null) startPanel.SetActive(true);
+        RefreshMenu();
+    }
+
+    void CompleteTutorialStep()
+    {
+        tutorialStep++;
+        if (tutorialStep >= 3)
+        {
+            tutorialSeen = true;
+            SaveProgress();
+            if (tutorialPanel != null) tutorialPanel.SetActive(false);
+            StartDay();
+            return;
+        }
+        ShowTutorialStep();
+    }
+
+    void BuildAudio()
+    {
+        audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.volume = .58f;
+        clickClip = Tone("click",700,.05f,.14f);
+        okClip = Tone("ok",980,.11f,.23f);
+        badClip = Tone("bad",175,.16f,.20f);
+        coinClip = Tone("coin",1320,.08f,.18f);
+    }
+
+    AudioClip Tone(string clipName, float hz, float length, float volume)
+    {
+        int rate = 22050;
+        int count = Mathf.Max(1,Mathf.RoundToInt(rate * length));
+        float[] data = new float[count];
+        for (int i=0;i<count;i++)
+        {
+            float t = i / (float)rate;
+            float env = 1f - i / (float)count;
+            data[i] = Mathf.Sin(2 * Mathf.PI * hz * t) * volume * env;
+        }
+        AudioClip clip = AudioClip.Create(clipName,count,1,rate,false);
+        clip.SetData(data,0);
+        return clip;
+    }
+
+    void Sfx(AudioClip clip)
+    {
+        if (soundOn && clip != null && audioSource != null) audioSource.PlayOneShot(clip);
+    }
+
+    void Flash(string message, Color color)
+    {
+        if (feedbackText == null) return;
+        feedbackText.text = message;
+        feedbackText.color = color;
+        StopCoroutine("FadeFeedback");
+        StartCoroutine("FadeFeedback");
+    }
+
+    IEnumerator FadeFeedback()
+    {
+        if (feedbackText == null) yield break;
+        Color c = feedbackText.color;
+        c.a = 1;
+        feedbackText.color = c;
+        yield return new WaitForSecondsRealtime(.85f);
+        float elapsed = 0;
+        while (elapsed < .45f && feedbackText != null)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            c.a = 1 - Mathf.Clamp01(elapsed / .45f);
+            feedbackText.color = c;
+            yield return null;
+        }
     }
 
     void UpdateHud()
     {
-        if(dayText!=null)dayText.text="DAY "+day+"  "+served+"/"+target;
-        if(cashText!=null)cashText.text="$ "+cash;
-        if(ratingText!=null)ratingText.text="★ "+rating.ToString("0.0");
+        if (dayText != null) dayText.text = "DAY " + day + "  " + served + "/" + target;
+        if (cashText != null) cashText.text = "$ " + cash;
+        if (ratingText != null) ratingText.text = "★ " + rating.ToString("0.0");
     }
 
     void UpdateStock()
     {
-        foreach(string i in ingredients)
+        for (int i=0;i<ingredients.Length;i++)
         {
-            int v=stock.ContainsKey(i)?stock[i]:0;
-            if(stockLabels.ContainsKey(i))stockLabels[i].text="x"+v;
-            if(ingredientButtons.ContainsKey(i))ingredientButtons[i].interactable=v>0;
+            string item = ingredients[i];
+            int value = stock.ContainsKey(item) ? stock[item] : 0;
+            if (stockLabels.ContainsKey(item)) stockLabels[item].text = "x" + value;
+            if (ingredientButtons.ContainsKey(item)) ingredientButtons[item].interactable = value > 0;
         }
     }
 
     void UpdateBowl()
     {
-        if(bowlText!=null)bowlText.text=bowl.Count==0?"BOWL: EMPTY":"BOWL: "+string.Join(" • ",bowl.ToArray());
+        if (bowlText != null) bowlText.text = bowl.Count == 0 ? "BOWL: EMPTY" : "BOWL: " + string.Join(" • ",bowl.ToArray());
     }
 
-    void Flash(string msg,Color c)
+    void UpdateUpgrades()
     {
-        if(feedbackText==null)return;
-        feedbackText.text=msg;feedbackText.color=c;
-        StopCoroutine("Fade");StartCoroutine("Fade");
+        UpdateUpgradeButton(patUpgrade,"PATIENCE +12%",0,patienceLevel);
+        UpdateUpgradeButton(priceUpgrade,"PRICE +$3",1,priceLevel);
+        UpdateUpgradeButton(tipsUpgrade,"TIP CHANCE +7%",2,tipsLevel);
+        UpdateUpgradeButton(stockUpgrade,"STOCK CAPACITY",3,stockLevel);
     }
 
-    IEnumerator Fade()
+    void UpdateUpgradeButton(Button button, string title, int type, int level)
     {
-        Color c=feedbackText.color;c.a=1;feedbackText.color=c;
-        yield return new WaitForSecondsRealtime(.9f);
-        float x=0;
-        while(x<.5f&&feedbackText!=null)
-        {
-            x+=Time.unscaledDeltaTime;
-            c.a=1-Mathf.Clamp01(x/.5f);
-            feedbackText.color=c;
-            yield return null;
-        }
+        if (button == null) return;
+        int cost = UpgradeCost(type,level);
+        SetButtonLabel(button,title + "\n$" + cost + "  •  Lv." + level);
+        button.interactable = cash >= cost;
     }
 }
