@@ -15,8 +15,9 @@ public static class KosharetoBuildSetup
     {
         PlayerSettings.productName = "Koshareto";
         PlayerSettings.companyName = "Koshareto Studio";
-        PlayerSettings.bundleVersion = "0.3.0";
-        PlayerSettings.Android.bundleVersionCode = 3;
+        PlayerSettings.bundleVersion = "1.0.0";
+        PlayerSettings.Android.bundleVersionCode = 10;
+        PlayerSettings.colorSpace = ColorSpace.Gamma;
         PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
         PlayerSettings.allowedAutorotateToPortrait = true;
         PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
@@ -32,6 +33,7 @@ public static class KosharetoBuildSetup
         PlayerSettings.Android.resizableWindow = false;
         PlayerSettings.Android.renderOutsideSafeArea = true;
 
+        // Conservative mobile rendering path: stable on a broad range of Android GPUs.
         PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
         PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.OpenGLES3 });
 
@@ -39,12 +41,12 @@ public static class KosharetoBuildSetup
         EditorUserBuildSettings.exportAsGoogleAndroidProject = false;
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene("Assets/Scenes/Main.unity", true) };
 
-        // Koshareto's runtime shaders live under Assets/Resources, so Unity must
-        // package them into the player and cannot strip them as unused scene assets.
-        if (Resources.Load<Shader>("KosharetoMobile") == null)
-            Debug.LogError("Koshareto build guard: KosharetoMobile shader is missing from Resources.");
-        if (Resources.Load<Shader>("KosharetoUI") == null)
-            Debug.LogError("Koshareto build guard: KosharetoUI shader is missing from Resources.");
+        Shader world = Resources.Load<Shader>("KosharetoMobile");
+        Shader ui = Resources.Load<Shader>("KosharetoUI");
+        if (world == null || !world.isSupported)
+            Debug.LogError("Koshareto build guard: KosharetoMobile shader is missing or unsupported.");
+        if (ui == null || !ui.isSupported)
+            Debug.LogError("Koshareto build guard: KosharetoUI shader is missing or unsupported.");
 
         AssetDatabase.SaveAssets();
     }
