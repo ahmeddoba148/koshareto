@@ -1,0 +1,60 @@
+name: Koshareto Code Sanity
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify required project files
+        shell: bash
+        run: |
+          set -e
+          test -f Assets/Scripts/KosharetoGame.cs
+          test -f Assets/Scripts/KosharetoUI.cs
+          test -f Assets/Scripts/KosharetoWorld.cs
+          test -f Assets/Resources/KosharetoMobile.shader
+          test -f Assets/Resources/KosharetoUI.shader
+          test -f Assets/Scenes/Main.unity
+          test -f ProjectSettings/ProjectVersion.txt
+          grep -q 'com.unity.ugui' Packages/manifest.json
+          ! grep -q 'particlesystem' Packages/manifest.json
+
+      - name: Parse all C# files with Roslyn
+        shell: bash
+        run: |
+          set -e
+          mkdir -p /tmp/koshareto-syntax
+          cd /tmp/koshareto-syntax
+          dotnet new console --framework net8.0 --force >/dev/null
+          dotnet add package Microsoft.CodeAnalysis.CSharp --version 4.11.0 >/dev/null
+          cat > Program.cs <<'CS'
+          using System;
+          using System.IO;
+          using System.Linq;
+          using Microsoft.CodeAnalysis;
+          using Microsoft.CodeAnalysis.CSharp;
+
+          var root = Environment.GetEnvironmentVariable("GITHUB_WORKSPACE")!;
+          var files = Directory.GetFiles(Path.Combine(root, "Assets"), "*.cs", SearchOption.AllDirectories);
+          var errors = 0;
+          foreach (var file in files)
+          {
+              var text = File.ReadAllText(file);
+              var tree = CSharpSyntaxTree.ParseText(text, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest), file);
+              var diagnostics = tree.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+              if (diagnostics.Length == 0) continue;
+              Console.WriteLine($"Syntax errors in {file}:");
+              foreach (var d in diagnostics) Console.WriteLine(d.ToString());
+              errors += diagnostics.Length;
+          }
+          if (errors > 0) Environment.Exit(1);
+          Console.WriteLine($"Parsed {files.Length} C# files successfully with zero syntax errors.");
+          CS
+          dotnet run --no-restore
