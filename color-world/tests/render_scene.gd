@@ -57,7 +57,22 @@ func run() -> void:
 	await create_timer(1.1).timeout
 	app.free_world()
 	await shot("11-completed-area")
-	print("Native rendering snapshots completed")
+	# The label regression displaced text despite a successful renderer. Check
+	# real rectangles and exercise both languages at the supported aspect ratios.
+	for dimensions in [Vector2i(360,640),Vector2i(390,844),Vector2i(432,960)]:
+		root.size = dimensions
+		await process_frame
+		for language in ["en","ar"]:
+			app.set_setting("language",language)
+			app.start_level(1)
+			await process_frame
+			await process_frame
+			for node in app.safe.get_children():
+				if node is Label:
+					assert(node.get_global_rect().end.y <= root.get_visible_rect().size.y)
+					assert(node.size.y < 80,"Unexpected wrapped label minimum height")
+			await shot("layout-%dx%d-%s" % [dimensions.x,dimensions.y,language])
+	print("Native rendering snapshots and responsive bounds completed")
 	app.audio.shutdown()
 	await create_timer(.3).timeout
 	app.queue_free()

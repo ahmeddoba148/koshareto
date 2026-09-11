@@ -181,6 +181,11 @@ func button(text: String,x: float,y: float,w: float,h: float,action: Callable,pr
 	b.focus_mode = Control.FOCUS_NONE
 	b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	place(b,x,y,w,h,parent)
+	# Keep long localized button captions inside their fixed touch target.
+	var caption_size: int = b.get_theme_font_size("font_size")
+	while caption_size > 10 and font.get_string_size(text,HORIZONTAL_ALIGNMENT_LEFT,-1,caption_size).x > b.size.x-12:
+		caption_size -= 1
+	b.add_theme_font_size_override("font_size",caption_size)
 	b.pressed.connect(func() -> void:
 		if busy or Time.get_ticks_msec()-last_button < 160: return
 		last_button = Time.get_ticks_msec()
@@ -309,7 +314,7 @@ func gameplay() -> void:
 		button("%s · %d" % [tr_key(names[i]),int(model.data.helpers[i])],i*.34,.815,.32,.051,func() -> void: use_helper(i))
 	button(tr_key("match"),0,.894,1,.08,do_match,true)
 	if level_id==1 and model.record(1).is_empty():
-		label(tr_key("tutorial"),.02,.758,.96,.047,11,muted,true)
+		label(tr_key("tutorial"),.02,.781,.96,.027,11,muted,true)
 	else:
 		var previous: Dictionary = model.record(level_id)
 		if not previous.is_empty(): label("%s %.1f%%  %s" % [tr_key("best"),float(previous.score),"★".repeat(int(previous.stars))],0,.769,1,.034,12,muted,true)

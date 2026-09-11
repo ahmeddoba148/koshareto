@@ -37,14 +37,14 @@ func setup(game_model: GameModel) -> void:
 	env.background_color = Color("dceaf0")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("fff5e4")
-	env.ambient_light_energy = 0.38
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.ambient_light_energy = 0.25
+	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	environment.environment = env
 	add_child(environment)
 	var sun: DirectionalLight3D = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52,-28,0)
 	sun.light_color = Color("fff3df")
-	sun.light_energy = 0.72
+	sun.light_energy = 0.45
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 75
 	add_child(sun)
@@ -104,7 +104,7 @@ func make_proxy(area: Dictionary) -> void:
 	plinth.mesh = mesh
 	plinth.position.y = -.25
 	var material: StandardMaterial3D = StandardMaterial3D.new()
-	material.albedo_color = Color("e2e6df")
+	material.albedo_color = Color("aab4bb")
 	material.roughness = 1
 	plinth.material_override = material
 	root.add_child(plinth)
@@ -177,7 +177,7 @@ func apply_record(node: MeshInstance3D, id: int) -> void:
 func update_area_color(a: int) -> void:
 	var material: StandardMaterial3D = proxies[a].base.material_override
 	var t: float = float(model.area_count(a))/15.0
-	material.albedo_color = Color("e2e6df").lerp(Color("b6d7a2"),t)
+	material.albedo_color = Color("aab4bb").lerp(Color("b6d7a2"),t)
 	apply_record(proxies[a].landmark,(a-1)*15+1)
 	if details.has(a) and model.area_count(a)==15: awaken(a)
 

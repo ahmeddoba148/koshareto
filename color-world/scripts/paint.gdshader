@@ -14,7 +14,7 @@ void fragment() {
  float amount = 1.0-smoothstep(reveal-0.025,reveal+0.025,normalized_height);
  if(reveal <= 0.0) amount=0.0;
  if(reveal >= 1.0) amount=1.0;
- vec3 neutral=vec3(0.86,0.875,0.89)*mix(0.65,1.12,COLOR.r);
+ vec3 neutral=vec3(0.52,0.56,0.61)*mix(0.65,1.12,COLOR.r);
  vec3 painted=clamp(paint_color.rgb*mix(0.3,1.28,COLOR.r),vec3(0.02),vec3(1.0));
  ALBEDO=mix(neutral,painted,amount);
  ROUGHNESS=0.7;
