@@ -49,11 +49,16 @@ func read_slot(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path): return {}
 	var f: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if f == null: return {}
-	var outer: Variant = JSON.parse_string(f.get_as_text())
+	var text: String = f.get_as_text()
 	f.close()
+	var envelope_parser: JSON = JSON.new()
+	if envelope_parser.parse(text) != OK: return {}
+	var outer: Variant = envelope_parser.data
 	if not outer is Dictionary or not outer.has("payload") or not outer.has("sha256"): return {}
 	if not outer.payload is String or outer.payload.sha256_text() != outer.sha256: return {}
-	var parsed: Variant = JSON.parse_string(outer.payload)
+	var payload_parser: JSON = JSON.new()
+	if payload_parser.parse(outer.payload) != OK: return {}
+	var parsed: Variant = payload_parser.data
 	return parsed if valid(parsed) else {}
 
 func load_game() -> Dictionary:

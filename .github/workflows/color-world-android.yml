@@ -39,6 +39,12 @@ jobs:
           godot --version
       - name: Import and test the native game
         run: python tools/build.py --tests-only
+      - name: Render native screens
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a godot --path . --rendering-method gl_compatibility --script tests/render_scene.gd 2>&1 | tee build/render.log
+          ! grep -E "SCRIPT ERROR|Parse Error|ERROR:|Assertion failed" build/render.log
       - name: Install Android export templates
         run: |
           curl -fL --retry 3 -o /tmp/templates.tpz https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
@@ -48,7 +54,7 @@ jobs:
         run: |
           sdkmanager 'platform-tools' 'build-tools;34.0.0' 'platforms;android-34'
           mkdir -p "$HOME/.config/godot" "$HOME/.android"
-          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname 'CN=Android Debug,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 10000
+          test -f "$HOME/.android/debug.keystore" || keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname 'CN=Android Debug,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 10000
           python - <<'PY'
           import os
           from pathlib import Path
@@ -77,4 +83,34 @@ jobs:
           path: |
             color-world/docs/*report.json
             color-world/build/*.log
+            color-world/build/*.png
+          retention-days: 14
+  android-smoke:
+    needs: native
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: COLOR-WORLD-APK
+          path: color-world/build
+      - name: Check emulator acceleration
+        run: ls -l /dev/kvm
+      - name: Install and launch on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: python3 color-world/tools/android_smoke.py
+      - name: Upload Android screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: COLOR-WORLD-Android-smoke
+          path: color-world/build/android
           retention-days: 14
