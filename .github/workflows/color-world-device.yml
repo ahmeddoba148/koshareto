@@ -1,0 +1,37 @@
+name: COLOR WORLD Device Verification
+on:
+  pull_request:
+    paths: ['.github/scripts/color-world-device.py', '.github/workflows/color-world-device.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  android:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: COLOR-WORLD-APK
+          path: color-world/build
+          run-id: 34653583545
+          github-token: ${{ github.token }}
+      - name: Enable emulator access
+        run: sudo setfacl -m "u:$(whoami):rw" /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: python3 .github/scripts/color-world-device.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: COLOR-WORLD-device-evidence
+          path: color-world/build/android
+          retention-days: 14

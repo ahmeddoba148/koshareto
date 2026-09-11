@@ -1,0 +1,10 @@
+.godot/
+__pycache__/
+*.pyc
+build/
+audio/*.wav
+fonts/*.ttf
+data/world.json
+data/content_manifest.json
+docs/*report.json
+*.keystore

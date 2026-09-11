@@ -1,0 +1,126 @@
+name: COLOR WORLD Android
+on:
+  pull_request:
+    paths: ['color-world/**', '.github/workflows/color-world-android.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: color-world-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: color-world
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Prepare reproducible world and audio
+        run: |
+          python -m pip install 'numpy==2.1.3'
+          test -f /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf || (sudo apt-get update && sudo apt-get install -y fonts-dejavu-core)
+          python tools/prepare_assets.py
+      - name: Install Godot 4.4.1
+        run: |
+          curl -fL --retry 3 -o /tmp/godot.zip https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot-bin
+          sudo install /tmp/godot-bin/Godot_v4.4.1-stable_linux.x86_64 /usr/local/bin/godot
+          godot --version
+      - name: Import and test the native game
+        run: python tools/build.py --tests-only
+      - name: Render native screens
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a godot --path . --rendering-method gl_compatibility --audio-driver Dummy --script tests/render_scene.gd 2>&1 | tee build/render.log
+          ! grep -E "SCRIPT ERROR|Parse Error|ERROR:|Assertion failed" build/render.log
+      - name: Install Android export templates
+        run: |
+          curl -fL --retry 3 -o /tmp/templates.tpz https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          unzip -jo /tmp/templates.tpz templates/android_debug.apk templates/android_release.apk templates/version.txt -d "$HOME/.local/share/godot/export_templates/4.4.1.stable"
+      - name: Preserve debug signing identity
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: color-world-debug-signing-v1
+      - name: Configure Android SDK and debug signing
+        run: |
+          sdkmanager 'platform-tools' 'build-tools;34.0.0' 'platforms;android-34'
+          mkdir -p "$HOME/.config/godot" "$HOME/.android"
+          test -f "$HOME/.android/debug.keystore" || keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname 'CN=Android Debug,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 10000
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          dest=Path.home()/'.config/godot/editor_settings-4.4.tres'
+          sdk=os.environ['ANDROID_HOME'];java=os.environ['JAVA_HOME']
+          key=str(Path.home()/'.android/debug.keystore')
+          dest.write_text('[gd_resource type="EditorSettings" format=3]\n\n[resource]\nexport/android/android_sdk_path = "'+sdk+'"\nexport/android/java_sdk_path = "'+java+'"\nexport/android/debug_keystore = "'+key+'"\n')
+          PY
+      - name: Export debug APK
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
+          python tools/build.py --export-only --platform android
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: COLOR-WORLD-APK
+          path: color-world/build/*.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: COLOR-WORLD-validation
+          path: |
+            color-world/docs/*report.json
+            color-world/build/*.log
+            color-world/build/*.png
+          retention-days: 14
+  android-smoke:
+    needs: native
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: COLOR-WORLD-APK
+          path: color-world/build
+      - name: Check emulator acceleration
+        run: |
+          test -e /dev/kvm
+          sudo setfacl -m "u:$(whoami):rw" /dev/kvm
+          ls -l /dev/kvm
+      - name: Install and launch on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: python3 color-world/tools/android_smoke.py
+      - name: Upload Android screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: COLOR-WORLD-Android-smoke
+          path: color-world/build/android
+          retention-days: 14
