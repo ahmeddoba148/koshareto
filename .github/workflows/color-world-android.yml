@@ -43,7 +43,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y xvfb libgl1-mesa-dri
-          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a godot --path . --rendering-method gl_compatibility --script tests/render_scene.gd 2>&1 | tee build/render.log
+          LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a godot --path . --rendering-method gl_compatibility --audio-driver Dummy --script tests/render_scene.gd 2>&1 | tee build/render.log
           ! grep -E "SCRIPT ERROR|Parse Error|ERROR:|Assertion failed" build/render.log
       - name: Install Android export templates
         run: |
@@ -96,7 +96,10 @@ jobs:
           name: COLOR-WORLD-APK
           path: color-world/build
       - name: Check emulator acceleration
-        run: ls -l /dev/kvm
+        run: |
+          test -e /dev/kvm
+          sudo setfacl -m "u:$(whoami):rw" /dev/kvm
+          ls -l /dev/kvm
       - name: Install and launch on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
