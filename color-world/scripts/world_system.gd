@@ -4,6 +4,7 @@ signal object_selected(level_id: int)
 
 var model: GameModel
 var camera: Camera3D
+var environment: Environment
 var detail_root: Node3D
 var groups: Dictionary = {}
 var details: Dictionary = {}
@@ -31,16 +32,16 @@ var citizens: Dictionary = {}
 
 func setup(game_model: GameModel) -> void:
 	model = game_model
-	var environment: WorldEnvironment = WorldEnvironment.new()
-	var env: Environment = Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("dceaf0")
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("fff5e4")
-	env.ambient_light_energy = 0.25
-	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
-	environment.environment = env
-	add_child(environment)
+	var world_environment: WorldEnvironment = WorldEnvironment.new()
+	environment = Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color("dceaf0")
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color("fff5e4")
+	environment.ambient_light_energy = 0.25
+	environment.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	world_environment.environment = environment
+	add_child(world_environment)
 	var sun: DirectionalLight3D = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52,-28,0)
 	sun.light_color = Color("fff3df")
@@ -94,6 +95,25 @@ func setup(game_model: GameModel) -> void:
 		make_proxy(area)
 	focus_area(int(model.level(model.next_level()).area_id), true)
 
+func theme_for(biome: String) -> Dictionary:
+	match biome:
+		"ocean": return {"sky":Color("cfe9f4"),"ambient":Color("fff0d9"),"base":Color("a8d8d7"),"road":Color("9eb7be")}
+		"water": return {"sky":Color("d8ecf3"),"ambient":Color("fff4df"),"base":Color("abd7cf"),"road":Color("9fb7bd")}
+		"forest": return {"sky":Color("dce9df"),"ambient":Color("fff1dd"),"base":Color("aecf9d"),"road":Color("a6b2aa")}
+		"garden": return {"sky":Color("e0edf0"),"ambient":Color("fff5df"),"base":Color("b7d9a8"),"road":Color("aab7b7")}
+		"market": return {"sky":Color("efe4da"),"ambient":Color("fff0dc"),"base":Color("ddc59f"),"road":Color("b6aba4")}
+		"airport": return {"sky":Color("dce8f0"),"ambient":Color("fff5e7"),"base":Color("b7ced1"),"road":Color("9aa9b0")}
+		"wind": return {"sky":Color("e7e6ef"),"ambient":Color("fff2e1"),"base":Color("c9c3d8"),"road":Color("aaa9b2")}
+		_: return {"sky":Color("dce6ec"),"ambient":Color("fff0df"),"base":Color("b8cfce"),"road":Color("9faeb5")}
+
+func apply_area_atmosphere(a: int) -> void:
+	if environment == null: return
+	var theme: Dictionary = theme_for(str(model.content.areas[a-1].biome))
+	var progress: float = float(model.area_count(a))/15.0
+	environment.background_color = Color("dce5ea").lerp(theme.sky,0.45+progress*.55)
+	environment.ambient_light_color = Color("fff5e4").lerp(theme.ambient,0.35+progress*.65)
+	environment.ambient_light_energy = lerpf(.23,.34,progress)
+
 func make_proxy(area: Dictionary) -> void:
 	var root: Node3D = Node3D.new()
 	root.position = vec(area.origin)
@@ -108,6 +128,7 @@ func make_proxy(area: Dictionary) -> void:
 	material.roughness = 1
 	plinth.material_override = material
 	root.add_child(plinth)
+	var roads: Array = []
 	# A continuous street network crosses all 100 districts.
 	for axis in range(2):
 		var road: MeshInstance3D = MeshInstance3D.new()
@@ -117,11 +138,13 @@ func make_proxy(area: Dictionary) -> void:
 		road.position.y = .01
 		var rm: StandardMaterial3D = StandardMaterial3D.new()
 		rm.albedo_color = Color("b5bcc3")
+		rm.roughness = .95
 		road.material_override = rm
 		root.add_child(road)
+		roads.append(road)
 	var landmark: MeshInstance3D = build_group(area.groups[0])
 	root.add_child(landmark)
-	proxies[int(area.id)] = {"root":root,"landmark":landmark,"base":plinth}
+	proxies[int(area.id)] = {"root":root,"landmark":landmark,"base":plinth,"roads":roads}
 	update_area_color(int(area.id))
 
 static func vec(a: Array) -> Vector3:
@@ -175,10 +198,15 @@ func apply_record(node: MeshInstance3D, id: int) -> void:
 		if node.get_meta("kind") in ["lamp","lantern","neontower"]: material.set_shader_parameter("glow",0.3)
 
 func update_area_color(a: int) -> void:
-	var material: StandardMaterial3D = proxies[a].base.material_override
 	var t: float = float(model.area_count(a))/15.0
-	material.albedo_color = Color("aab4bb").lerp(Color("b6d7a2"),t)
+	var theme: Dictionary = theme_for(str(model.content.areas[a-1].biome))
+	var material: StandardMaterial3D = proxies[a].base.material_override
+	material.albedo_color = Color("aab4bb").lerp(theme.base,t)
+	for road in proxies[a].roads:
+		var rm: StandardMaterial3D = road.material_override
+		rm.albedo_color = Color("b5bcc3").lerp(theme.road,t*.8)
 	apply_record(proxies[a].landmark,(a-1)*15+1)
+	if a == active_area: apply_area_atmosphere(a)
 	if details.has(a) and model.area_count(a)==15: awaken(a)
 
 func stream_around(a: int) -> void:
@@ -222,6 +250,7 @@ func focus_area(a: int, instant: bool = false) -> void:
 	desired_yaw = .55 + (a%3)*.2
 	pitch = .78
 	stream_around(a)
+	apply_area_atmosphere(a)
 	if instant:
 		center = desired_center
 		distance = desired_distance
@@ -230,6 +259,8 @@ func focus_area(a: int, instant: bool = false) -> void:
 func focus_level(id: int) -> void:
 	var level: Dictionary = model.level(id)
 	if not details.has(int(level.area_id)): stream_around(int(level.area_id))
+	active_area = int(level.area_id)
+	apply_area_atmosphere(active_area)
 	desired_center = vec(level.camera.focus)
 	desired_distance = float(level.camera.distance)
 	desired_yaw = float(level.camera.yaw)
@@ -255,8 +286,10 @@ func _process(delta: float) -> void:
 	for a in citizens:
 		for i in range(citizens[a].size()):
 			var person: Node3D = citizens[a][i]
-			person.position = Vector3(sin(clock*.22+i*2.1)*3.5,.02,cos(clock*.22+i*2.1)*3.5)
-			person.rotation.y = -clock*.22-i*2.1
+			var pace: float = .18+float((i%3))*0.035
+			var radius: float = 2.8+float(i%2)*1.1
+			person.position = Vector3(sin(clock*pace+i*2.1)*radius,.02,cos(clock*pace+i*2.1)*radius)
+			person.rotation.y = -clock*pace-i*2.1
 	if free_mode:
 		var closest: int = 1
 		var d: float = INF
@@ -265,7 +298,47 @@ func _process(delta: float) -> void:
 			if dist < d:
 				d = dist
 				closest = int(a.id)
-		if closest != active_area: stream_around(closest)
+		if closest != active_area:
+			stream_around(closest)
+			apply_area_atmosphere(closest)
+
+func paint_duration(tool: String) -> float:
+	match tool:
+		"roller": return 1.85
+		"spray": return 2.25
+		"wide_brush": return 1.7
+		"splash": return 1.65
+		"magic": return 2.35
+		_: return 2.05
+
+func paint_motion(tool: String,start: Vector3,end: Vector3,t: float) -> Vector3:
+	var p: Vector3 = start.lerp(end,t)
+	match tool:
+		"brush":
+			p.x += sin(t*TAU*2.0)*.42
+		"roller":
+			p.x += sin(t*TAU)*.22
+		"spray":
+			p.x += sin(t*TAU*4.0)*.62
+			p.z += cos(t*TAU*3.0)*.24
+		"wide_brush":
+			p.x += sin(t*TAU*1.5)*.32
+		"splash":
+			p.y += sin(t*PI)*1.15
+			p.x += sin(t*TAU)*.35
+		"magic":
+			p.x += sin(t*TAU*3.0)*.72
+			p.y += sin(t*PI)*.62
+			p.z += cos(t*TAU*2.0)*.38
+	return p
+
+func paint_rotation(tool: String,t: float) -> float:
+	match tool:
+		"roller": return -.15+sin(t*TAU)*.12
+		"spray": return .25+sin(t*TAU*3.0)*.2
+		"splash": return -1.0+t*2.0
+		"magic": return t*TAU*1.5
+		_: return -.35+sin(t*TAU*2.0)*.28
 
 func reveal(id: int) -> void:
 	painting = true
@@ -274,29 +347,41 @@ func reveal(id: int) -> void:
 	await get_tree().create_timer(.6).timeout
 	var node: MeshInstance3D = groups[id]
 	var material: ShaderMaterial = node.material_override
-	material.set_shader_parameter("paint_color",ColorSystem.color_of(model.record(id).ratios,model.level(id)))
+	var color: Color = ColorSystem.color_of(model.record(id).ratios,model.level(id))
+	var tool: String = str(model.level(id).paint_tool)
+	material.set_shader_parameter("paint_color",color)
 	material.set_shader_parameter("reveal",0.0)
-	paint_tool = make_tool(model.level(id).paint_tool)
+	paint_tool = make_tool(tool,color)
 	add_child(paint_tool)
 	var bounds: AABB = node.mesh.get_aabb()
 	var start: Vector3 = node.global_position+Vector3(-1.5,bounds.position.y,-1)
 	var end: Vector3 = node.global_position+Vector3(1.5,bounds.end.y,-1)
 	paint_tool.position = start
-	var pigment: CPUParticles3D = pigment_particles(ColorSystem.color_of(model.record(id).ratios,model.level(id)),model.level(id).paint_tool)
+	var pigment: CPUParticles3D = pigment_particles(color,tool)
 	paint_tool.add_child(pigment)
 	pigment.position = Vector3(.4,.8,0)
+	var duration: float = paint_duration(tool)
 	var tween: Tween = create_tween().set_parallel(true)
-	tween.tween_method(func(v: float) -> void: material.set_shader_parameter("reveal",v),0.0,1.0,2.1)
-	tween.tween_property(paint_tool,"position",end,2.1).set_trans(Tween.TRANS_SINE)
-	tween.tween_property(paint_tool,"rotation:z",.4,2.1)
+	tween.tween_method(func(v: float) -> void:
+		material.set_shader_parameter("reveal",smoothstep(0.0,1.0,v))
+	,0.0,1.0,duration)
+	tween.tween_method(func(v: float) -> void:
+		if is_instance_valid(paint_tool):
+			paint_tool.position = paint_motion(tool,start,end,v)
+			paint_tool.rotation.z = paint_rotation(tool,v)
+	,0.0,1.0,duration).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	await tween.finished
 	paint_tool.queue_free()
 	paint_tool = null
 	apply_record(node,id)
+	var pulse: Tween = create_tween()
+	pulse.tween_property(node,"scale",Vector3(1.035,1.035,1.035),.1).set_trans(Tween.TRANS_BACK)
+	pulse.tween_property(node,"scale",Vector3.ONE,.16).set_trans(Tween.TRANS_SINE)
+	await pulse.finished
 	update_area_color(int(model.level(id).area_id))
 	painting = false
 
-func make_tool(kind: String) -> Node3D:
+func make_tool(kind: String,color: Color) -> Node3D:
 	var root: Node3D = Node3D.new()
 	var handle: MeshInstance3D = MeshInstance3D.new()
 	var hm: CylinderMesh = CylinderMesh.new()
@@ -328,9 +413,11 @@ func make_tool(kind: String) -> Node3D:
 		head.mesh = bm
 	head.position = Vector3(.45,.85,0)
 	var m: StandardMaterial3D = StandardMaterial3D.new()
-	m.albedo_color = Color("54ddc7")
+	m.albedo_color = color
+	m.roughness = .55
 	m.emission_enabled = kind == "magic"
-	m.emission = Color("60e8d2")
+	m.emission = color
+	m.emission_energy_multiplier = 1.35 if kind == "magic" else 0.0
 	head.material_override = m
 	root.add_child(head)
 	return root
@@ -340,6 +427,10 @@ func finale() -> void:
 	desired_center = Vector3(108,0,108)
 	desired_distance = 340
 	pitch = 1.0
+	if environment != null:
+		environment.background_color = Color("d7edf2")
+		environment.ambient_light_color = Color("fff1cf")
+		environment.ambient_light_energy = .38
 	await get_tree().create_timer(3.0).timeout
 
 func set_quality(value: String) -> void:
@@ -399,16 +490,17 @@ func pick(screen: Vector2) -> void:
 
 func pigment_particles(color: Color, tool: String) -> CPUParticles3D:
 	var particles: CPUParticles3D = CPUParticles3D.new()
-	particles.amount = 18 if quality == "BATTERY SAVER" else 36
-	particles.lifetime = .55
+	var base_amount: int = 18 if quality == "BATTERY SAVER" else 36
+	particles.amount = roundi(float(base_amount)*(1.35 if tool in ["spray","splash","magic"] else 1.0))
+	particles.lifetime = .55 if tool != "magic" else .8
 	particles.emitting = true
 	particles.direction = Vector3(0,-1,0)
-	particles.spread = 80 if tool in ["spray","splash"] else 25
+	particles.spread = 80 if tool in ["spray","splash"] else 45 if tool == "magic" else 25
 	particles.initial_velocity_min = .4
-	particles.initial_velocity_max = 1.6
-	particles.gravity = Vector3(0,-2,0)
+	particles.initial_velocity_max = 2.0 if tool in ["spray","splash"] else 1.6
+	particles.gravity = Vector3(0,-2,0) if tool != "magic" else Vector3(0,-.35,0)
 	particles.scale_amount_min = .035
-	particles.scale_amount_max = .085
+	particles.scale_amount_max = .1 if tool in ["splash","magic"] else .085
 	var particle_mesh: SphereMesh = SphereMesh.new()
 	particle_mesh.radius = .5
 	particle_mesh.height = 1
@@ -418,6 +510,7 @@ func pigment_particles(color: Color, tool: String) -> CPUParticles3D:
 	mat.albedo_color = color
 	mat.emission_enabled = tool == "magic"
 	mat.emission = color
+	mat.emission_energy_multiplier = 1.2 if tool == "magic" else 0.0
 	particle_mesh.material = mat
 	particles.mesh = particle_mesh
 	return particles
@@ -425,8 +518,9 @@ func pigment_particles(color: Color, tool: String) -> CPUParticles3D:
 func awaken(a: int) -> void:
 	if citizens.has(a) or not details.has(a): return
 	citizens[a] = []
-	for i in range(3):
-		var person: MeshInstance3D = build_group({"id":"citizen", "level_id":(a-1)*15+i+1,
+	var count: int = 2 if quality == "BATTERY SAVER" else 5
+	for i in range(count):
+		var person: MeshInstance3D = build_group({"id":"citizen", "level_id":(a-1)*15+(i%15)+1,
 			"name":"Citizen", "kind":"citizen", "position":[0,0,0], "rotation":0,
 			"life":true, "primitives":[
 				{"mesh":"sphere","p":[0,.82,0],"s":[.3,.32,.3],"tint":1.3},
