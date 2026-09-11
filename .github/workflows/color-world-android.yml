@@ -50,6 +50,11 @@ jobs:
           curl -fL --retry 3 -o /tmp/templates.tpz https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
           mkdir -p "$HOME/.local/share/godot/export_templates/4.4.1.stable"
           unzip -jo /tmp/templates.tpz templates/android_debug.apk templates/android_release.apk templates/version.txt -d "$HOME/.local/share/godot/export_templates/4.4.1.stable"
+      - name: Preserve debug signing identity
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: color-world-debug-signing-v1
       - name: Configure Android SDK and debug signing
         run: |
           sdkmanager 'platform-tools' 'build-tools;34.0.0' 'platforms;android-34'

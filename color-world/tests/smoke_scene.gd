@@ -22,6 +22,8 @@ func run() -> void:
 	app.free_world()
 	await process_frame
 	print("Native scene smoke completed")
+	app.audio.shutdown()
+	await create_timer(.3).timeout
 	app.queue_free()
 	app = null
 	await process_frame

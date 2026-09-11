@@ -71,3 +71,18 @@ func apply() -> void:
 		var layer: float = 1.0 if i == 0 else area_progress if i == 1 else area_progress*area_progress
 		music[i].volume_db = linear_to_db(maxf(.00001,float(settings.music)*layer*music_context)) - 5
 	if ambience != null: ambience.volume_db = linear_to_db(maxf(.00001,float(settings.sfx)*music_context)) - 13
+
+func shutdown() -> void:
+	# Release playback before its owner disappears. The audio thread drains
+	# stopped voices independently of the scene tree's deferred deletion queue.
+	for player in voices + music:
+		if is_instance_valid(player):
+			player.stop()
+			player.stream = null
+	if is_instance_valid(ambience):
+		ambience.stop()
+		ambience.stream = null
+	cache.clear()
+
+func _exit_tree() -> void:
+	shutdown()
