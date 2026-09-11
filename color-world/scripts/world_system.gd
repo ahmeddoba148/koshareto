@@ -37,14 +37,14 @@ func setup(game_model: GameModel) -> void:
 	env.background_color = Color("dceaf0")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("fff5e4")
-	env.ambient_light_energy = 0.75
+	env.ambient_light_energy = 0.38
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	environment.environment = env
 	add_child(environment)
 	var sun: DirectionalLight3D = DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52,-28,0)
 	sun.light_color = Color("fff3df")
-	sun.light_energy = 1.25
+	sun.light_energy = 0.72
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 75
 	add_child(sun)

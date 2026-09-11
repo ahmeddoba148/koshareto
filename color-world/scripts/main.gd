@@ -153,7 +153,6 @@ func panel(x: float,y: float,w: float,h: float,color: Color = Color.WHITE,parent
 
 func label(text: String,x: float,y: float,w: float,h: float,size: int = 18,color: Color = Color("233b4f"),centered: bool = false,parent: Control = null) -> Label:
 	var l: Label = Label.new()
-	l.text = text
 	l.add_theme_font_override("font",font)
 	var factor: float = clampf(safe.size.y/820.0,.76,1.13)
 	l.add_theme_font_size_override("font_size",maxi(10,roundi(size*factor)))
@@ -163,7 +162,9 @@ func label(text: String,x: float,y: float,w: float,h: float,size: int = 18,color
 	if not centered and model.data.settings.language == "ar": l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Size an empty label before shaping wrapped text: avoids a stale tall minimum.
 	place(l,x,y,w,h,parent)
+	l.text = text
 	return l
 
 func button(text: String,x: float,y: float,w: float,h: float,action: Callable,primary: bool = false,parent: Control = null) -> Button:
