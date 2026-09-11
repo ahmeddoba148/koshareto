@@ -12,7 +12,7 @@ def main():
   report['blocker']='Godot executable is not installed.';save();print(report['blocker']);return 2
  if a.platform=='ios' and platform.system()!='Darwin' and not a.tests_only:
   report['blocker']='iOS export requires macOS/Xcode and the owner signing team.';save();print(report['blocker']);return 2
- commands=[] if a.export_only else [('import',['--headless','--editor','--import','--quit']),('core',['--headless','--script','tests/test_game.gd']),('scene',['--headless','--script','tests/smoke_scene.gd'])]
+ commands=[] if a.export_only else [('import',['--headless','--editor','--import','--quit']),('core',['--headless','--script','tests/test_game.gd']),('scene',['--headless','--verbose','--script','tests/smoke_scene.gd'])]
  if not a.tests_only:commands.append(('export',['--headless','--export-debug',{'android':'Android','ios':'iOS','linux':'Linux QA'}[a.platform]]))
  for name,args in commands:
   cmd=[engine,'--path',str(ROOT)]+args

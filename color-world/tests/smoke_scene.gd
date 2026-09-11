@@ -22,4 +22,8 @@ func run() -> void:
 	app.free_world()
 	await process_frame
 	print("Native scene smoke completed")
+	app.queue_free()
+	app = null
+	await process_frame
+	await process_frame
 	quit()

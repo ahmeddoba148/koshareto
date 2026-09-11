@@ -36,5 +36,30 @@ func run() -> void:
 	app.close_modal()
 	app.free_world()
 	await shot("08-world")
+	# Verify the actual match -> reward -> paint UI path, not only data logic.
+	app.start_level(1)
+	app.ratios = app.model.level(1).target.duplicate()
+	app.sync_colors()
+	await app.do_match()
+	assert(app.model.record(1).stars==3)
+	await shot("09-match-reward")
+	var reveal_result: Dictionary = {"improved":true,"coins":50,"world_restored":false,"perfect_world":false,"area_complete":false}
+	await app.show_paint(reveal_result)
+	assert(app.model.data.pending_reveal==0)
+	await shot("10-painted-object")
+	# Restore a complete district through real model transactions for inspection.
+	for id in range(2,16):
+		assert(app.model.attempt(id))
+		assert(app.model.match_result(id,app.model.level(id).target).saved)
+	for id in app.world.groups: app.world.apply_record(app.world.groups[id],id)
+	app.world.update_area_color(1)
+	app.world.focus_area(1)
+	await create_timer(1.1).timeout
+	app.free_world()
+	await shot("11-completed-area")
 	print("Native rendering snapshots completed")
+	app.queue_free()
+	app = null
+	await process_frame
+	await process_frame
 	quit()

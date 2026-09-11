@@ -109,7 +109,6 @@ func safe_rect() -> Rect2:
 	return r
 
 func clear_screen(background: bool = false) -> void:
-	ui.size = get_viewport().get_visible_rect().size
 	ui_epoch += 1
 	close_modal()
 	for child in ui.get_children():
